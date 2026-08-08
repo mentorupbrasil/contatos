@@ -9,8 +9,6 @@ export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [showName, setShowName] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,19 +20,10 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          name: name.trim() || undefined,
-        }),
+        body: JSON.stringify({ email, password }),
       });
-      const result = (await response.json()) as { error?: string; code?: string };
-      if (!response.ok) {
-        if (result.code === "NOT_INVITED") {
-          setShowName(false);
-        }
-        throw new Error(result.error || "Não foi possível entrar.");
-      }
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Não foi possível entrar.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível entrar.");
@@ -44,18 +33,6 @@ export function LoginForm() {
 
   return (
     <form className="login-form" onSubmit={onSubmit}>
-      {showName && (
-        <label>
-          Seu nome
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            autoComplete="name"
-            placeholder="Ex.: Ana Paula"
-            required
-          />
-        </label>
-      )}
       <label>
         E-mail
         <input
@@ -79,15 +56,6 @@ export function LoginForm() {
           minLength={6}
         />
       </label>
-      {!showName && (
-        <button
-          type="button"
-          className="text-button login-first-access"
-          onClick={() => setShowName(true)}
-        >
-          Primeiro acesso da rede? Informe também o nome
-        </button>
-      )}
       {error && (
         <p className="login-error" role="alert">
           {error}

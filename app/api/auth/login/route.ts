@@ -11,11 +11,9 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       email?: string;
       password?: string;
-      name?: string;
     };
     const email = body.email?.trim().toLowerCase() ?? "";
     const password = body.password ?? "";
-    const name = body.name?.trim() || email.split("@")[0] || "Administração";
 
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       throw new ApiError(400, "Informe um e-mail válido.", "INVALID_EMAIL");
@@ -57,7 +55,12 @@ export async function POST(request: Request) {
     const passwordHash = await hashPassword(password);
     const [created] = await db
       .insert(users)
-      .values({ email, name, role: "admin", passwordHash })
+      .values({
+        email,
+        name: "Administração",
+        role: "admin",
+        passwordHash,
+      })
       .returning();
     await setSessionEmail(email);
     return NextResponse.json(

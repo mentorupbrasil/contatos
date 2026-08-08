@@ -35,8 +35,8 @@ export default async function Home() {
           <span className="eyebrow">Rede de lideranças · Imperatriz</span>
           <h1>Entre com seu e-mail e senha</h1>
           <p>
-            Cada liderança acessa a própria base. A administração libera os logins e acompanha o
-            ranking da rede.
+            Cada liderança acessa a própria base. A administração libera e edita todos os logins da
+            rede.
           </p>
         </div>
 

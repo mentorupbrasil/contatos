@@ -78,6 +78,14 @@ type PlaceRow = {
   active: number;
 };
 
+type NetworkUser = {
+  id: number;
+  name: string;
+  email: string;
+  role: AppRole;
+  status: "active" | "inactive";
+};
+
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -105,6 +113,8 @@ export function CampaignApp({
   const [contactSheet, setContactSheet] = useState(false);
   const [campaignSheet, setCampaignSheet] = useState(false);
   const [leaderSheet, setLeaderSheet] = useState(false);
+  const [editUser, setEditUser] = useState<NetworkUser | null>(null);
+  const [networkUsers, setNetworkUsers] = useState<NetworkUser[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Todos");
   const [toast, setToast] = useState("");
@@ -386,6 +396,28 @@ export function CampaignApp({
     }
   }
 
+  async function loadNetworkUsers() {
+    try {
+      const response = await fetch("/api/users", { cache: "no-store" });
+      const result = (await response.json()) as {
+        error?: string;
+        users?: Array<Record<string, unknown>>;
+      };
+      if (!response.ok) throw new Error(result.error || "Não foi possível carregar os acessos.");
+      setNetworkUsers(
+        (result.users ?? []).map((row) => ({
+          id: Number(row.id),
+          name: String(row.name ?? ""),
+          email: String(row.email ?? ""),
+          role: row.role === "admin" ? "admin" : "leader",
+          status: row.status === "inactive" ? "inactive" : "active",
+        })),
+      );
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Não foi possível carregar os acessos.");
+    }
+  }
+
   async function addLeader(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -403,9 +435,41 @@ export function CampaignApp({
       if (!response.ok) throw new Error(result.error || "Não foi possível liberar o acesso.");
       setLeaderSheet(false);
       setMaisPanel("acessos");
+      await loadNetworkUsers();
       showToast(`Acesso liberado para ${name}. Entregue e-mail e senha.`);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Não foi possível liberar o acesso.");
+    }
+  }
+
+  async function saveUserEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editUser) return;
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("leaderName") || "").trim();
+    const email = String(form.get("leaderEmail") || "").trim();
+    const password = String(form.get("leaderPassword") || "");
+    const newRole = String(form.get("leaderRole") || "leader");
+    const status = String(form.get("leaderStatus") || "active");
+    try {
+      const response = await fetch(`/api/users/${editUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          role: newRole,
+          status,
+          password: password || undefined,
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Não foi possível salvar o acesso.");
+      setEditUser(null);
+      await loadNetworkUsers();
+      showToast(`Acesso de ${name} atualizado.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Não foi possível salvar o acesso.");
     }
   }
 
@@ -494,10 +558,16 @@ export function CampaignApp({
         {tab === "mais" && (
           <MoreView
             panel={maisPanel}
-            onPanel={setMaisPanel}
+            onPanel={(next) => {
+              setMaisPanel(next);
+              if (next === "acessos" && role === "admin") {
+                void loadNetworkUsers();
+              }
+            }}
             userName={userName}
             userEmail={userEmail}
             role={role}
+            networkUsers={networkUsers}
             ranking={ranking}
             rankingByCity={rankingByCity}
             rankingByNeighborhood={rankingByNeighborhood}
@@ -511,6 +581,13 @@ export function CampaignApp({
                 return;
               }
               setLeaderSheet(true);
+            }}
+            onEditUser={(user) => {
+              if (role !== "admin") {
+                showToast("Somente administradoras gerenciam acessos.");
+                return;
+              }
+              setEditUser(user);
             }}
           />
         )}
@@ -666,6 +743,57 @@ export function CampaignApp({
             </div>
             <button className="button button--primary button--wide" type="submit">
               <UserPlus size={18} /> Liberar acesso
+            </button>
+          </form>
+        </Sheet>
+      )}
+
+      {editUser && (
+        <Sheet
+          title="Editar acesso"
+          subtitle="Atualize login, senha e permissão"
+          onClose={() => setEditUser(null)}
+        >
+          <form className="sheet-form" onSubmit={saveUserEdit} key={editUser.id}>
+            <label>
+              Nome
+              <input name="leaderName" defaultValue={editUser.name} autoComplete="name" required />
+            </label>
+            <label>
+              E-mail de acesso
+              <input
+                name="leaderEmail"
+                type="email"
+                defaultValue={editUser.email}
+                autoComplete="email"
+                required
+              />
+            </label>
+            <label>
+              Nova senha
+              <input
+                name="leaderPassword"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Deixe em branco para manter"
+              />
+            </label>
+            <label>
+              Permissão
+              <select name="leaderRole" defaultValue={editUser.role}>
+                <option value="leader">Liderança — cadastra e vê seus contatos</option>
+                <option value="admin">Administração — também realiza disparos</option>
+              </select>
+            </label>
+            <label>
+              Status
+              <select name="leaderStatus" defaultValue={editUser.status}>
+                <option value="active">Ativo</option>
+                <option value="inactive">Desativado</option>
+              </select>
+            </label>
+            <button className="button button--primary button--wide" type="submit">
+              <Check size={19} /> Salvar alterações
             </button>
           </form>
         </Sheet>
@@ -1079,6 +1207,7 @@ function MoreView({
   userName,
   userEmail,
   role,
+  networkUsers,
   ranking,
   rankingByCity,
   rankingByNeighborhood,
@@ -1087,12 +1216,14 @@ function MoreView({
   whatsappConnected,
   onInstall,
   onManageLeaders,
+  onEditUser,
 }: {
   panel: MaisPanel;
   onPanel: (panel: MaisPanel) => void;
   userName: string;
   userEmail: string;
   role: AppRole;
+  networkUsers: NetworkUser[];
   ranking: RankingRow[];
   rankingByCity: PlaceRow[];
   rankingByNeighborhood: PlaceRow[];
@@ -1101,6 +1232,7 @@ function MoreView({
   whatsappConnected: boolean;
   onInstall: () => void;
   onManageLeaders: () => void;
+  onEditUser: (user: NetworkUser) => void;
 }) {
   if (panel === "ranking") {
     return (
@@ -1179,18 +1311,59 @@ function MoreView({
             </button>
           )}
         </section>
-        <section className="section-card">
-          <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
-            {role === "admin"
-              ? "Toque no + para liberar e-mail e senha de uma liderança. Cada uma vê só os próprios contatos e também o ranking geral."
-              : "Somente a administração libera novos acessos."}
-          </p>
-          {role === "admin" && (
-            <button className="button button--primary button--wide" type="button" style={{ marginTop: 16 }} onClick={onManageLeaders}>
-              <UserPlus size={18} /> Liberar liderança
-            </button>
-          )}
-        </section>
+        {role !== "admin" ? (
+          <section className="section-card">
+            <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
+              Somente a administração libera e edita acessos.
+            </p>
+          </section>
+        ) : (
+          <>
+            <section className="section-card">
+              <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
+                Crie ou edite e-mail, senha e permissão. Só entra quem a administração liberar.
+              </p>
+              <button
+                className="button button--primary button--wide"
+                type="button"
+                style={{ marginTop: 16 }}
+                onClick={onManageLeaders}
+              >
+                <UserPlus size={18} /> Liberar liderança
+              </button>
+            </section>
+            <section className="section-card section-card--flush">
+              {networkUsers.length === 0 ? (
+                <div className="empty-state" style={{ padding: "28px 16px" }}>
+                  <Users size={28} />
+                  <span className="empty-title">Nenhum acesso listado</span>
+                  <span>Libere a primeira liderança pelo botão acima.</span>
+                </div>
+              ) : (
+                networkUsers.map((user) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    className="access-row"
+                    onClick={() => onEditUser(user)}
+                  >
+                    <span className="access-avatar">{initials(user.name)}</span>
+                    <span className="access-main">
+                      <strong>{user.name}</strong>
+                      <small>{user.email}</small>
+                      <span className="access-meta">
+                        {user.role === "admin" ? "Administração" : "Liderança"}
+                        {" · "}
+                        {user.status === "active" ? "Ativo" : "Desativado"}
+                      </span>
+                    </span>
+                    <ChevronRight size={18} />
+                  </button>
+                ))
+              )}
+            </section>
+          </>
+        )}
       </div>
     );
   }
