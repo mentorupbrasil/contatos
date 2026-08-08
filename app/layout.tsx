@@ -9,10 +9,10 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Rede de Lideranças",
-  description: "Contatos, lideranças e comunicados em um só lugar.",
-  applicationName: "Rede de Lideranças",
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg", apple: "/favicon.svg" },
+  title: "Luzia Mary · Rede de Lideranças",
+  description: "Contatos, lideranças e comunicados da rede Luzia Mary.",
+  applicationName: "Luzia Mary",
+  icons: { icon: "/brand/luzia-logo.svg", shortcut: "/brand/luzia-logo.svg", apple: "/brand/luzia-logo.svg" },
 };
 
 export const viewport: Viewport = {

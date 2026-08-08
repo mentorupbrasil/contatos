@@ -24,6 +24,7 @@ export const users = pgTable(
     id: serial("id").primaryKey(),
     email: text("email").notNull(),
     name: text("name").notNull(),
+    passwordHash: text("password_hash"),
     role: text("role", { enum: ["admin", "leader"] }).notNull().default("leader"),
     status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
     ...timestamps,
@@ -39,6 +40,7 @@ export const contacts = pgTable(
     phoneE164: text("phone_e164").notNull(),
     phoneDisplay: text("phone_display").notNull(),
     neighborhood: text("neighborhood").notNull().default("Não informado"),
+    city: text("city").notNull().default("Imperatriz"),
     leaderId: integer("leader_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),

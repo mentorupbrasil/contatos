@@ -1,5 +1,5 @@
-import { CampaignApp } from "../components/CampaignApp";
+import { redirect } from "next/navigation";
 
 export default function DemoPage() {
-  return <CampaignApp demo userName="Ana Paula" userEmail="ana@exemplo.com" />;
+  redirect("/");
 }

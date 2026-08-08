@@ -1,5 +1,5 @@
 import { CampaignApp } from "./components/CampaignApp";
-import { LoginForm, LoginTrust } from "./components/LoginForm";
+import { LoginBrand, LoginForm, LoginTrust } from "./components/LoginForm";
 import { requireAppUser } from "../lib/auth";
 import { getSessionUser } from "../lib/session";
 
@@ -13,29 +13,21 @@ export default async function Home() {
       const user = await requireAppUser();
       return <CampaignApp userName={user.name} userEmail={user.email} />;
     } catch {
-      // Sessão sem convite válido — mostra o login de novo.
+      // Sessão inválida — mostra login.
     }
   }
 
   return (
     <main className="login-shell">
       <section className="login-copy">
-        <div className="brand-lockup brand-lockup--large">
-          <span className="brand-mark" aria-hidden="true">
-            R
-          </span>
-          <span>
-            <strong>Rede</strong>
-            <small>de Lideranças</small>
-          </span>
-        </div>
+        <LoginBrand />
 
         <div className="login-headline">
-          <span className="eyebrow">Organização que cabe no bolso</span>
-          <h1>Todo mundo informado. Nenhum contato esquecido.</h1>
+          <span className="eyebrow">Rede Luzia Mary · Imperatriz</span>
+          <h1>Entre com seu e-mail e senha</h1>
           <p>
-            Cadastre pessoas com autorização, organize suas lideranças e envie comunicados pelo
-            canal oficial do WhatsApp em poucos toques.
+            Cada liderança acessa a própria base. A administração libera os logins e acompanha o
+            ranking da rede.
           </p>
         </div>
 
@@ -52,25 +44,25 @@ export default async function Home() {
             <span>● ● ●</span>
           </div>
           <div className="preview-header">
-            <div className="preview-logo">R</div>
+            <div className="preview-logo">LM</div>
             <div className="preview-avatar">AP</div>
           </div>
           <div className="preview-greeting">
-            <small>Bom dia, Ana</small>
+            <small>Bom dia</small>
             <strong>Vamos movimentar a rede?</strong>
           </div>
           <div className="preview-total">
             <span>Contatos ativos</span>
-            <strong>1.248</strong>
-            <em>+86 nesta semana</em>
+            <strong>—</strong>
+            <em>Ranking das lideranças</em>
           </div>
           <button type="button" className="preview-cta">
             + Cadastrar contato
           </button>
           <div className="preview-message">
-            <span>PRÓXIMO DISPARO</span>
-            <strong>Encontro de lideranças</strong>
-            <small>Sábado, 9h · 1.248 destinatários</small>
+            <span>IMPERATRIZ-MA</span>
+            <strong>Bairros da cidade</strong>
+            <small>Ou cadastre outro município só com a cidade</small>
           </div>
         </div>
       </aside>
