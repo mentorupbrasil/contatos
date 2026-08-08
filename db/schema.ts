@@ -25,6 +25,7 @@ export const users = pgTable(
     email: text("email").notNull(),
     name: text("name").notNull(),
     passwordHash: text("password_hash"),
+    avatarUrl: text("avatar_url"),
     role: text("role", { enum: ["admin", "leader"] }).notNull().default("leader"),
     status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
     ...timestamps,

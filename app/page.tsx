@@ -11,7 +11,7 @@ export default async function Home() {
   if (session) {
     try {
       const user = await requireAppUser();
-      return <CampaignApp userName={user.name} userEmail={user.email} />;
+      return <CampaignApp userName={user.name} userEmail={user.email} avatarUrl={user.avatarUrl} />;
     } catch {
       // Sessão inválida — mostra login.
     }

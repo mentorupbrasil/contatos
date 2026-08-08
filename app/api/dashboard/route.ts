@@ -84,7 +84,13 @@ export async function GET() {
     ]);
 
     return Response.json({
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+      },
       stats: { totalContacts, activeContacts },
       contacts: recentContacts,
       campaigns: recentCampaigns,

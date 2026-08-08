@@ -3,6 +3,7 @@
 import {
   Bell,
   CalendarClock,
+  Camera,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -32,7 +33,7 @@ import {
   X,
 } from "lucide-react";
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { formatContactPlace, IMPERATRIZ_NEIGHBORHOODS, OTHER_CITY_OPTION } from "../../lib/locations";
 
 type Tab = "inicio" | "contatos" | "disparos" | "mais";
@@ -41,6 +42,15 @@ type RankingKind = "liderancas" | "bairros" | "municipios";
 type AppRole = "admin" | "leader";
 type ContactStatus = "ativo" | "saiu";
 type CampaignStatus = "agendado" | "enviado" | "rascunho";
+
+type AppNotification = {
+  id: string;
+  kind: "contact" | "optout" | "campaign" | "system" | "tip";
+  title: string;
+  body: string;
+  createdAt: string;
+  href?: Tab;
+};
 
 type Contact = {
   id: number;
@@ -91,12 +101,16 @@ type InstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+const NOTIFY_READ_KEY = "luzia-notify-read";
+
 export function CampaignApp({
   userName,
   userEmail,
+  avatarUrl: initialAvatarUrl = null,
 }: {
   userName: string;
   userEmail: string;
+  avatarUrl?: string | null;
 }) {
   const [tab, setTab] = useState<Tab>("inicio");
   const [maisPanel, setMaisPanel] = useState<MaisPanel>("menu");
@@ -108,11 +122,17 @@ export function CampaignApp({
   const [rankingKind, setRankingKind] = useState<RankingKind>("bairros");
   const [activeBase, setActiveBase] = useState(0);
   const [role, setRole] = useState<AppRole>("leader");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(initialAvatarUrl);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [contactSheet, setContactSheet] = useState(false);
   const [campaignSheet, setCampaignSheet] = useState(false);
   const [leaderSheet, setLeaderSheet] = useState(false);
+  const [notifySheet, setNotifySheet] = useState(false);
+  const [profileSheet, setProfileSheet] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [editUser, setEditUser] = useState<NetworkUser | null>(null);
   const [networkUsers, setNetworkUsers] = useState<NetworkUser[]>([]);
   const [search, setSearch] = useState("");
@@ -122,18 +142,34 @@ export function CampaignApp({
   const [progress, setProgress] = useState(0);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [otherCity, setOtherCity] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const firstName = userName.split(" ")[0] || "Liderança";
   const activeTotal = activeBase;
+  const unreadCount = notifications.filter(
+    (item) => item.kind !== "tip" && !readNotificationIds.includes(item.id),
+  ).length;
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(NOTIFY_READ_KEY);
+      if (raw) setReadNotificationIds(JSON.parse(raw) as string[]);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     async function loadDashboard() {
       try {
-        const response = await fetch("/api/dashboard", { cache: "no-store" });
-        const result = (await response.json()) as {
+        const [dashResponse, notifyResponse] = await Promise.all([
+          fetch("/api/dashboard", { cache: "no-store" }),
+          fetch("/api/notifications", { cache: "no-store" }),
+        ]);
+        const result = (await dashResponse.json()) as {
           error?: string;
-          user?: { role: AppRole };
+          user?: { role: AppRole; avatarUrl?: string | null };
           stats?: { activeContacts: number };
           contacts?: Array<Record<string, unknown>>;
           campaigns?: Array<Record<string, unknown>>;
@@ -142,9 +178,11 @@ export function CampaignApp({
           rankingByNeighborhood?: Array<Record<string, unknown>>;
           whatsappConfigured?: boolean;
         };
-        if (!response.ok) throw new Error(result.error || "Não foi possível carregar a rede.");
+        if (!dashResponse.ok) throw new Error(result.error || "Não foi possível carregar a rede.");
         if (cancelled) return;
         setRole(result.user?.role ?? "leader");
+        if (typeof result.user?.avatarUrl === "string") setAvatarUrl(result.user.avatarUrl);
+        else if (result.user?.avatarUrl === null) setAvatarUrl(null);
         setActiveBase(Number(result.stats?.activeContacts ?? 0));
         setContacts((result.contacts ?? []).map(mapApiContact));
         setCampaigns((result.campaigns ?? []).map(mapApiCampaign));
@@ -174,6 +212,13 @@ export function CampaignApp({
           })),
         );
         setWhatsappConnected(Boolean(result.whatsappConfigured));
+
+        if (notifyResponse.ok) {
+          const notifyResult = (await notifyResponse.json()) as {
+            notifications?: AppNotification[];
+          };
+          setNotifications(notifyResult.notifications ?? []);
+        }
       } catch (error) {
         if (!cancelled) {
           setToast(error instanceof Error ? error.message : "Não foi possível carregar a rede.");
@@ -230,6 +275,61 @@ export function CampaignApp({
   }, [contacts, filter, search]);
 
   const showToast = (message: string) => setToast(message);
+
+  function markNotificationsRead(ids: string[]) {
+    setReadNotificationIds((prev) => {
+      const next = Array.from(new Set([...prev, ...ids]));
+      try {
+        window.localStorage.setItem(NOTIFY_READ_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+
+  function openNotifications() {
+    setNotifySheet(true);
+    markNotificationsRead(notifications.map((item) => item.id));
+  }
+
+  async function saveAvatar(nextUrl: string | null) {
+    setAvatarBusy(true);
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarUrl: nextUrl }),
+      });
+      const result = (await response.json()) as {
+        error?: string;
+        user?: { avatarUrl?: string | null };
+      };
+      if (!response.ok) throw new Error(result.error || "Não foi possível atualizar a foto.");
+      setAvatarUrl(result.user?.avatarUrl ?? null);
+      showToast(nextUrl ? "Foto de perfil atualizada." : "Foto removida.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Não foi possível atualizar a foto.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function onAvatarFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showToast("Escolha um arquivo de imagem.");
+      return;
+    }
+    try {
+      const dataUrl = await compressAvatar(file);
+      await saveAvatar(dataUrl);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Não foi possível ler a imagem.");
+    }
+  }
 
   async function installApp() {
     if (!installPrompt) {
@@ -488,11 +588,22 @@ export function CampaignApp({
           <small>Rede de Lideranças</small>
         </div>
         <div className="header-actions">
-          <button className="icon-button" aria-label="Notificações" type="button">
+          <button className="icon-button" aria-label="Notificações" type="button" onClick={openNotifications}>
             <Bell size={20} />
+            {unreadCount > 0 && <span className="notify-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
           </button>
-          <button className="avatar" aria-label={`Perfil de ${firstName}`} type="button">
-            {initials(userName)}
+          <button
+            className="avatar"
+            aria-label={`Perfil de ${firstName}`}
+            type="button"
+            onClick={() => setProfileSheet(true)}
+          >
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="" className="avatar-image" />
+            ) : (
+              initials(userName)
+            )}
           </button>
         </div>
       </header>
@@ -566,6 +677,7 @@ export function CampaignApp({
             }}
             userName={userName}
             userEmail={userEmail}
+            avatarUrl={avatarUrl}
             role={role}
             networkUsers={networkUsers}
             ranking={ranking}
@@ -589,6 +701,7 @@ export function CampaignApp({
               }
               setEditUser(user);
             }}
+            onOpenProfile={() => setProfileSheet(true)}
           />
         )}
       </main>
@@ -796,6 +909,87 @@ export function CampaignApp({
               <Check size={19} /> Salvar alterações
             </button>
           </form>
+        </Sheet>
+      )}
+
+      {notifySheet && (
+        <Sheet title="Notificações" subtitle="Alertas úteis da sua rede" onClose={() => setNotifySheet(false)}>
+          <div className="notify-list">
+            {notifications.length === 0 ? (
+              <div className="empty-state" style={{ padding: "28px 8px" }}>
+                <Bell size={28} />
+                <span className="empty-title">Sem avisos agora</span>
+                <span>Quando houver novidades, elas aparecem aqui.</span>
+              </div>
+            ) : (
+              notifications.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`notify-item notify-item--${item.kind}`}
+                  onClick={() => {
+                    setNotifySheet(false);
+                    if (item.href) {
+                      setTab(item.href);
+                      if (item.href === "mais") setMaisPanel("whatsapp");
+                    }
+                  }}
+                >
+                  <span className="notify-icon">{notificationIcon(item.kind)}</span>
+                  <span className="notify-copy">
+                    <strong>{item.title}</strong>
+                    <small>{item.body}</small>
+                    <em>{formatRelativeTime(item.createdAt)}</em>
+                  </span>
+                  {item.href && <ChevronRight size={16} />}
+                </button>
+              ))
+            )}
+          </div>
+        </Sheet>
+      )}
+
+      {profileSheet && (
+        <Sheet title="Seu perfil" subtitle="Foto e dados de quem está logado" onClose={() => setProfileSheet(false)}>
+          <div className="profile-sheet">
+            <div className="profile-sheet-avatar">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarUrl} alt="" />
+              ) : (
+                <span>{initials(userName)}</span>
+              )}
+            </div>
+            <div className="profile-sheet-meta">
+              <strong>{userName}</strong>
+              <small>{userEmail}</small>
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              hidden
+              onChange={onAvatarFile}
+            />
+            <button
+              className="button button--primary button--wide"
+              type="button"
+              disabled={avatarBusy}
+              onClick={() => avatarInputRef.current?.click()}
+            >
+              <Camera size={18} /> {avatarBusy ? "Enviando…" : "Trocar foto"}
+            </button>
+            {avatarUrl && (
+              <button
+                className="button button--ghost button--wide"
+                type="button"
+                disabled={avatarBusy}
+                onClick={() => void saveAvatar(null)}
+              >
+                Remover foto
+              </button>
+            )}
+          </div>
         </Sheet>
       )}
 
@@ -1206,6 +1400,7 @@ function MoreView({
   onPanel,
   userName,
   userEmail,
+  avatarUrl,
   role,
   networkUsers,
   ranking,
@@ -1217,11 +1412,13 @@ function MoreView({
   onInstall,
   onManageLeaders,
   onEditUser,
+  onOpenProfile,
 }: {
   panel: MaisPanel;
   onPanel: (panel: MaisPanel) => void;
   userName: string;
   userEmail: string;
+  avatarUrl: string | null;
   role: AppRole;
   networkUsers: NetworkUser[];
   ranking: RankingRow[];
@@ -1233,6 +1430,7 @@ function MoreView({
   onInstall: () => void;
   onManageLeaders: () => void;
   onEditUser: (user: NetworkUser) => void;
+  onOpenProfile: () => void;
 }) {
   if (panel === "ranking") {
     return (
@@ -1452,11 +1650,24 @@ function MoreView({
   return (
     <div className="view-stack">
       <section className="profile-card">
-        <span className="profile-avatar">{initials(userName)}</span>
+        <button type="button" className="profile-avatar" onClick={onOpenProfile} aria-label="Trocar foto de perfil">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt="" />
+          ) : (
+            initials(userName)
+          )}
+          <span className="profile-avatar-edit">
+            <Camera size={14} />
+          </span>
+        </button>
         <div>
           <span className="eyebrow">{role === "admin" ? "Administradora" : "Liderança"}</span>
           <h1>{userName}</h1>
           <p>{userEmail}</p>
+          <button className="text-button" type="button" onClick={onOpenProfile} style={{ marginTop: 6 }}>
+            Trocar foto
+          </button>
         </div>
       </section>
 
@@ -1560,6 +1771,50 @@ function NavButton({
       <span>{label}</span>
     </button>
   );
+}
+
+function notificationIcon(kind: AppNotification["kind"]) {
+  if (kind === "contact") return <UserPlus size={18} />;
+  if (kind === "optout") return <ShieldCheck size={18} />;
+  if (kind === "campaign") return <Send size={18} />;
+  if (kind === "system") return <Settings size={18} />;
+  return <CheckCircle2 size={18} />;
+}
+
+function formatRelativeTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return "Agora";
+  if (minutes < 60) return `Há ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `Há ${hours} h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `Há ${days} d`;
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+async function compressAvatar(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const size = 320;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Não foi possível processar a imagem.");
+  const scale = Math.max(size / bitmap.width, size / bitmap.height);
+  const drawW = bitmap.width * scale;
+  const drawH = bitmap.height * scale;
+  ctx.fillStyle = "#ecfdf5";
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(bitmap, (size - drawW) / 2, (size - drawH) / 2, drawW, drawH);
+  bitmap.close();
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+  if (dataUrl.length > 180_000) {
+    throw new Error("A foto ficou grande demais. Tente outra imagem.");
+  }
+  return dataUrl;
 }
 
 function initials(name: string) {
