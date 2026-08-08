@@ -421,6 +421,7 @@ export function CampaignApp({
             className="brand-wordmark brand-wordmark--header"
             unoptimized
           />
+          <small>Rede de Lideranças</small>
         </div>
         <div className="header-actions">
           <button className="icon-button" aria-label="Notificações" type="button">

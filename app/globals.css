@@ -52,6 +52,12 @@ body.sheet-open { overflow: hidden; }
   height: 16px;
   max-width: 120px;
 }
+.brand-lockup {
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  justify-items: start;
+}
 .login-brand {
   display: grid;
   gap: 10px;
@@ -69,6 +75,12 @@ body.sheet-open { overflow: hidden; }
   max-width: 440px;
   margin: 0 auto;
   align-items: center;
+}
+.login-aside {
+  display: none;
+}
+.login-copy-mobile-brand {
+  display: block;
 }
 .login-shell--simple .login-copy {
   width: 100%;
@@ -199,7 +211,7 @@ body.sheet-open { overflow: hidden; }
 
 .brand-lockup > span:last-child { display: grid; line-height: 1; }
 .brand-lockup strong { font-size: 16px; letter-spacing: -0.03em; }
-.brand-lockup small { color: var(--muted); font-size: 10px; margin-top: 4px; }
+.brand-lockup small { color: var(--muted); font-size: 10px; margin: 0; }
 .brand-mark {
   display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px;
   background: var(--ink); color: var(--accent); font-weight: 800; font-size: 19px;
@@ -456,8 +468,59 @@ body.sheet-open { overflow: hidden; }
 
 @media (min-width: 900px) {
   .login-shell--simple {
-    max-width: 440px;
-    padding: 64px 24px;
+    max-width: none;
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    grid-template-columns: minmax(320px, 1.05fr) minmax(420px, 0.95fr);
+    align-items: stretch;
+  }
+  .login-aside {
+    display: grid;
+    align-content: center;
+    justify-items: start;
+    gap: 22px;
+    padding: 64px clamp(40px, 6vw, 88px);
+    background:
+      radial-gradient(ellipse 90% 70% at 20% 10%, rgba(114, 227, 173, 0.45), transparent 55%),
+      linear-gradient(160deg, #ecfdf5 0%, #f8faf9 48%, #eef8f3 100%);
+    border-right: 1px solid var(--line);
+    min-height: 100vh;
+  }
+  .login-aside .brand-wordmark {
+    height: 28px;
+    max-width: 220px;
+  }
+  .login-aside .login-brand-sub {
+    font-size: 15px;
+  }
+  .login-aside-lead {
+    margin: 0;
+    max-width: 28ch;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1.55;
+    font-weight: 450;
+  }
+  .login-copy-mobile-brand {
+    display: none;
+  }
+  .login-shell--simple .login-copy {
+    display: grid;
+    align-content: center;
+    width: min(100%, 460px);
+    margin: 0 auto;
+    padding: 64px clamp(32px, 5vw, 72px);
+  }
+  .login-shell--simple .login-headline {
+    margin: 0 0 28px;
+  }
+  .login-shell--simple .login-headline h1 {
+    font-size: clamp(2rem, 2.6vw, 2.6rem);
+  }
+  .login-shell--simple .login-actions {
+    max-width: none;
   }
   .login-preview { display: none; }
   .preview-phone { display: none; }

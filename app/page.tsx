@@ -19,8 +19,17 @@ export default async function Home() {
 
   return (
     <main className="login-shell login-shell--simple">
-      <section className="login-copy">
+      <aside className="login-aside" aria-hidden="true">
         <LoginBrand />
+        <p className="login-aside-lead">
+          Contatos, ranking e comunicados oficiais da rede Luzia Mary em Imperatriz.
+        </p>
+      </aside>
+
+      <section className="login-copy">
+        <div className="login-copy-mobile-brand">
+          <LoginBrand />
+        </div>
 
         <div className="login-headline">
           <span className="eyebrow">Rede de lideranças · Imperatriz</span>
