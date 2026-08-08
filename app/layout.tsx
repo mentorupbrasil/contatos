@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "Luzia Mary · Rede de Lideranças",
   description: "Contatos, lideranças e comunicados da rede Luzia Mary.",
   applicationName: "Luzia Mary",
-  icons: { icon: "/brand/luzia-logo-light.png", shortcut: "/brand/luzia-logo-light.png", apple: "/brand/luzia-logo-light.png" },
+  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg", apple: "/favicon.svg" },
 };
 
 export const viewport: Viewport = {

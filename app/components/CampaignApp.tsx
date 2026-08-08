@@ -413,16 +413,14 @@ export function CampaignApp({
     <div className="app-shell">
       <header className="app-header">
         <div className="brand-lockup">
-          <div className="brand-plate brand-plate--header">
-            <Image
-              src="/brand/luzia-logo-light.png"
-              alt="Luzia Mary"
-              width={180}
-              height={28}
-              className="brand-wordmark brand-wordmark--header"
-              unoptimized
-            />
-          </div>
+          <Image
+            src="/brand/luzia-logo-clear.png"
+            alt="Luzia Mary"
+            width={120}
+            height={16}
+            className="brand-wordmark brand-wordmark--header"
+            unoptimized
+          />
         </div>
         <div className="header-actions">
           <button className="icon-button" aria-label="Notificações" type="button">

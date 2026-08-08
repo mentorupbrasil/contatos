@@ -43,30 +43,18 @@ body.sheet-open { overflow: hidden; }
 .brand-wordmark {
   display: block;
   width: auto;
-  height: 40px;
-  max-width: min(100%, 300px);
+  height: 22px;
+  max-width: 168px;
   object-fit: contain;
-  object-position: center;
+  object-position: left center;
 }
 .brand-wordmark--header {
-  height: 22px;
-  max-width: 170px;
-}
-.brand-plate {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #0a0a0a;
-  border-radius: 14px;
-  padding: 14px 18px;
-}
-.brand-plate--header {
-  border-radius: 10px;
-  padding: 8px 10px;
+  height: 16px;
+  max-width: 120px;
 }
 .login-brand {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   justify-items: start;
 }
 .login-brand-sub {
