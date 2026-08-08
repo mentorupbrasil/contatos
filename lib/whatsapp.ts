@@ -6,13 +6,18 @@ type RuntimeEnv = {
   WHATSAPP_APP_SECRET?: string;
 };
 
-async function runtimeEnv() {
-  const workers = await import("cloudflare:workers");
-  return workers.env as unknown as RuntimeEnv;
+function runtimeEnv(): RuntimeEnv {
+  return {
+    WHATSAPP_ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
+    WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
+    WHATSAPP_GRAPH_API_VERSION: process.env.WHATSAPP_GRAPH_API_VERSION,
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+    WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET,
+  };
 }
 
-async function configuration() {
-  const values = await runtimeEnv();
+function configuration() {
+  const values = runtimeEnv();
   const accessToken = values.WHATSAPP_ACCESS_TOKEN?.trim();
   const phoneNumberId = values.WHATSAPP_PHONE_NUMBER_ID?.trim();
   const graphVersion = values.WHATSAPP_GRAPH_API_VERSION?.trim();
@@ -22,9 +27,9 @@ async function configuration() {
   return { accessToken, phoneNumberId, graphVersion };
 }
 
-export async function isWhatsAppConfigured() {
+export function isWhatsAppConfigured() {
   try {
-    await configuration();
+    configuration();
     return true;
   } catch {
     return false;
@@ -32,16 +37,26 @@ export async function isWhatsAppConfigured() {
 }
 
 async function send(payload: Record<string, unknown>) {
-  const config = await configuration();
-  const response = await fetch(`https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.accessToken}`,
-      "Content-Type": "application/json",
+  const config = configuration();
+  const response = await fetch(
+    `https://graph.facebook.com/${config.graphVersion}/${config.phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        ...payload,
+      }),
     },
-    body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", ...payload }),
-  });
-  const result = (await response.json()) as { messages?: Array<{ id?: string }>; error?: { code?: number; message?: string } };
+  );
+  const result = (await response.json()) as {
+    messages?: Array<{ id?: string }>;
+    error?: { code?: number; message?: string };
+  };
   if (!response.ok || !result.messages?.[0]?.id) {
     const code = result.error?.code ? String(result.error.code) : String(response.status);
     throw new Error(`WHATSAPP_${code}: ${result.error?.message ?? "Falha no envio"}`);
@@ -73,12 +88,12 @@ export function sendTextMessage(to: string, body: string) {
   return send({ to: to.replace(/^\+/, ""), type: "text", text: { preview_url: false, body } });
 }
 
-export async function webhookVerifyToken() {
-  return (await runtimeEnv()).WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim() ?? "";
+export function webhookVerifyToken() {
+  return runtimeEnv().WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim() ?? "";
 }
 
 export async function verifyWebhookSignature(rawBody: string, signatureHeader: string | null) {
-  const secret = (await runtimeEnv()).WHATSAPP_APP_SECRET?.trim();
+  const secret = runtimeEnv().WHATSAPP_APP_SECRET?.trim();
   if (!secret || !signatureHeader?.startsWith("sha256=")) return false;
   const key = await crypto.subtle.importKey(
     "raw",
@@ -88,10 +103,14 @@ export async function verifyWebhookSignature(rawBody: string, signatureHeader: s
     ["sign"],
   );
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
-  const expected = Array.from(new Uint8Array(signature)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  const expected = Array.from(new Uint8Array(signature))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
   const actual = signatureHeader.slice(7).toLowerCase();
   if (actual.length !== expected.length) return false;
   let mismatch = 0;
-  for (let index = 0; index < expected.length; index += 1) mismatch |= expected.charCodeAt(index) ^ actual.charCodeAt(index);
+  for (let index = 0; index < expected.length; index += 1) {
+    mismatch |= expected.charCodeAt(index) ^ actual.charCodeAt(index);
+  }
   return mismatch === 0;
 }

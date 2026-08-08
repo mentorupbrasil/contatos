@@ -10,7 +10,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const id = Number(rawId);
     if (!Number.isInteger(id)) throw new ApiError(400, "Contato inválido.", "INVALID_CONTACT");
     const body = (await request.json()) as { action?: "opt_out" | "reactivate" };
-    const db = await getDb();
+    const db = getDb();
     const scope = user.role === "admin" ? eq(contacts.id, id) : and(eq(contacts.id, id), eq(contacts.leaderId, user.id));
     const [contact] = await db.select().from(contacts).where(scope).limit(1);
     if (!contact) throw new ApiError(404, "Contato não encontrado.", "CONTACT_NOT_FOUND");
@@ -18,7 +18,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (body.action === "opt_out") {
       const now = new Date();
       await db.update(contacts).set({ status: "opted_out", optedOutAt: now, updatedAt: now }).where(eq(contacts.id, id));
-      await db.batch([
+      await Promise.all([
         db.insert(consentEvents).values({ contactId: id, kind: "withdrawn", source: "painel", actorUserId: user.id }),
         db.insert(auditLogs).values({ actorUserId: user.id, action: "contact.opted_out", entityType: "contact", entityId: String(id) }),
       ]);

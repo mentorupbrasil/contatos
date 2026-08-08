@@ -1,26 +1,19 @@
-import { drizzle } from "drizzle-orm/d1";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
-async function getRuntimeEnv() {
-  const workers = await import("cloudflare:workers");
-  return workers.env;
+export type AppDb = ReturnType<typeof createDb>;
+
+function createDb(connectionString: string) {
+  return drizzle(neon(connectionString), { schema });
 }
 
-export async function getDb() {
-  const env = await getRuntimeEnv();
-  if (!env.DB) {
+export function getDb() {
+  const connectionString = process.env.DATABASE_URL?.trim();
+  if (!connectionString) {
     throw new Error(
-      "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
+      "DATABASE_URL não configurada. No Vercel, conecte o Neon Storage e use a connection string do Postgres.",
     );
   }
-
-  return drizzle(env.DB, { schema });
-}
-
-export async function getRawDb() {
-  const env = await getRuntimeEnv();
-  if (!env.DB) {
-    throw new Error("Cloudflare D1 binding `DB` is unavailable.");
-  }
-  return env.DB;
+  return createDb(connectionString);
 }

@@ -48,20 +48,23 @@ Mensagens iniciadas pela organização exigem opt-in e modelo aprovado. A versã
 
 ## Banco e privacidade
 
-O banco D1 contém sete tabelas: usuários, contatos, consentimentos, campanhas, destinatários da fila, auditoria e configurações. A migração gerada fica em `drizzle/`.
+O banco é **Postgres no Neon** (integração nativa do Vercel Storage). As sete tabelas continuam as mesmas: usuários, contatos, consentimentos, campanhas, destinatários da fila, auditoria e configurações.
+
+No Vercel: **Storage → Create Database → Neon**, copie `DATABASE_URL` e rode `npm run db:push` (ou aplique `drizzle/0001_neon_postgres.sql`).
 
 O cadastro evita classificação ideológica, intenção de voto ou perfil comportamental. A base contém apenas os dados operacionais necessários. Uma retirada pelo WhatsApp é aplicada imediatamente; pedidos de eliminação podem ser processados pela administração e precisam respeitar a política de retenção definida pela campanha.
 
-## Operação da fila
-
-Cada toque em “Confirmar e disparar” cria todos os destinatários no banco antes do primeiro envio. O navegador processa lotes pequenos pela API oficial. Se o celular perder conexão, os destinatários ainda pendentes continuam gravados e a administração pode usar “Continuar envio” no histórico. As atualizações de entrega e leitura chegam pelo webhook.
-
-Para volumes muito altos ou envio totalmente desacoplado do celular, a próxima evolução é mover o consumidor da fila para um Worker agendado ou uma fila durável, mantendo o mesmo banco e as mesmas regras de consentimento.
-
 ## Desenvolvimento
 
-- `npm run lint`: análise estática.
-- `npm run db:generate`: gera migrações após mudanças em `db/schema.ts`.
-- `npm run build`: build e validação do artefato hospedável.
+```bash
+npm install
+cp .env.example .env.local   # preencha DATABASE_URL
+npm run db:push
+npm run dev
+```
 
-O projeto exige Node.js `>=22.13.0`.
+- `npm run lint`: análise estática.
+- `npm run db:generate` / `npm run db:push`: schema Drizzle → Neon.
+- `npm run build`: build Next.js para Vercel.
+
+O primeiro e-mail que entrar (banco vazio) vira administração. Depois disso, só e-mails liberados no painel entram.

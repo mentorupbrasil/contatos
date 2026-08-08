@@ -1,41 +1,53 @@
 import {
+  boolean,
   index,
   integer,
-  sqliteTable,
+  pgTable,
+  serial,
   text,
+  timestamp,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 
-export const users = sqliteTable(
+const timestamps = {
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+};
+
+export const users = pgTable(
   "users",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     email: text("email").notNull(),
     name: text("name").notNull(),
     role: text("role", { enum: ["admin", "leader"] }).notNull().default("leader"),
     status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+    ...timestamps,
   },
   (table) => [uniqueIndex("users_email_unique").on(table.email)],
 );
 
-export const contacts = sqliteTable(
+export const contacts = pgTable(
   "contacts",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     name: text("name").notNull(),
     phoneE164: text("phone_e164").notNull(),
     phoneDisplay: text("phone_display").notNull(),
     neighborhood: text("neighborhood").notNull().default("Não informado"),
-    leaderId: integer("leader_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    leaderId: integer("leader_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
     source: text("source").notNull().default("lideranca_presencial"),
-    consentAt: integer("consent_at", { mode: "timestamp_ms" }).notNull(),
+    consentAt: timestamp("consent_at", { withTimezone: true, mode: "date" }).notNull(),
     consentTextVersion: text("consent_text_version").notNull().default("2026-01"),
     status: text("status", { enum: ["active", "opted_out", "deleted"] }).notNull().default("active"),
-    optedOutAt: integer("opted_out_at", { mode: "timestamp_ms" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+    optedOutAt: timestamp("opted_out_at", { withTimezone: true, mode: "date" }),
+    ...timestamps,
   },
   (table) => [
     uniqueIndex("contacts_phone_unique").on(table.phoneE164),
@@ -45,45 +57,60 @@ export const contacts = sqliteTable(
   ],
 );
 
-export const campaigns = sqliteTable(
+export const campaigns = pgTable(
   "campaigns",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     title: text("title").notNull(),
     templateName: text("template_name").notNull(),
     templateLanguage: text("template_language").notNull().default("pt_BR"),
-    includeNameParameter: integer("include_name_parameter", { mode: "boolean" }).notNull().default(true),
+    includeNameParameter: boolean("include_name_parameter").notNull().default(true),
     audienceType: text("audience_type").notNull().default("all_active"),
-    status: text("status", { enum: ["draft", "queued", "sending", "completed", "paused", "failed"] }).notNull().default("draft"),
-    createdBy: integer("created_by").notNull().references(() => users.id, { onDelete: "restrict" }),
-    scheduledAt: integer("scheduled_at", { mode: "timestamp_ms" }),
-    startedAt: integer("started_at", { mode: "timestamp_ms" }),
-    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+    status: text("status", {
+      enum: ["draft", "queued", "sending", "completed", "paused", "failed"],
+    })
+      .notNull()
+      .default("draft"),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true, mode: "date" }),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
     totalRecipients: integer("total_recipients").notNull().default(0),
     sentCount: integer("sent_count").notNull().default(0),
     deliveredCount: integer("delivered_count").notNull().default(0),
     readCount: integer("read_count").notNull().default(0),
     failedCount: integer("failed_count").notNull().default(0),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+    ...timestamps,
   },
   (table) => [index("campaigns_status_idx").on(table.status)],
 );
 
-export const campaignRecipients = sqliteTable(
+export const campaignRecipients = pgTable(
   "campaign_recipients",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    campaignId: integer("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
-    contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "restrict" }),
-    status: text("status", { enum: ["queued", "sending", "sent", "delivered", "read", "failed", "skipped"] }).notNull().default("queued"),
+    id: serial("id").primaryKey(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "restrict" }),
+    status: text("status", {
+      enum: ["queued", "sending", "sent", "delivered", "read", "failed", "skipped"],
+    })
+      .notNull()
+      .default("queued"),
     providerMessageId: text("provider_message_id"),
     failureCode: text("failure_code"),
     attempts: integer("attempts").notNull().default(0),
-    queuedAt: integer("queued_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
-    sentAt: integer("sent_at", { mode: "timestamp_ms" }),
-    deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
-    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    queuedAt: timestamp("queued_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true, mode: "date" }),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     uniqueIndex("campaign_contact_unique").on(table.campaignId, table.contactId),
@@ -92,37 +119,45 @@ export const campaignRecipients = sqliteTable(
   ],
 );
 
-export const consentEvents = sqliteTable(
+export const consentEvents = pgTable(
   "consent_events",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    contactId: integer("contact_id").notNull().references(() => contacts.id, { onDelete: "restrict" }),
+    id: serial("id").primaryKey(),
+    contactId: integer("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "restrict" }),
     kind: text("kind", { enum: ["granted", "withdrawn", "deleted"] }).notNull(),
     source: text("source").notNull(),
     actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
     detail: text("detail"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
   },
   (table) => [index("consent_contact_idx").on(table.contactId, table.createdAt)],
 );
 
-export const auditLogs = sqliteTable(
+export const auditLogs = pgTable(
   "audit_logs",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
     details: text("details"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
   },
   (table) => [index("audit_created_idx").on(table.createdAt)],
 );
 
-export const settings = sqliteTable("settings", {
+export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
   updatedBy: integer("updated_by").references(() => users.id, { onDelete: "set null" }),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });

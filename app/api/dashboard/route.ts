@@ -7,7 +7,7 @@ import { isWhatsAppConfigured } from "../../../lib/whatsapp";
 export async function GET() {
   try {
     const user = await requireAppUser();
-    const db = await getDb();
+    const db = getDb();
     const contactScope = user.role === "admin"
       ? ne(contacts.status, "deleted")
       : and(eq(contacts.leaderId, user.id), ne(contacts.status, "deleted"));
@@ -35,7 +35,7 @@ export async function GET() {
       stats: { totalContacts, activeContacts },
       contacts: recentContacts,
       campaigns: recentCampaigns,
-      whatsappConfigured: await isWhatsAppConfigured(),
+      whatsappConfigured: isWhatsAppConfigured(),
     });
   } catch (error) {
     return apiErrorResponse(error);

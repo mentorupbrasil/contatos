@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const current = await requireAppUser();
     requireAdmin(current);
-    const db = await getDb();
+    const db = getDb();
     const rows = await db.select().from(users).orderBy(asc(users.name));
     return Response.json({ users: rows });
   } catch (error) {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const email = body.email?.trim().toLowerCase() ?? "";
     const name = body.name?.trim() ?? "";
     if (!/^\S+@\S+\.\S+$/.test(email) || name.length < 2) throw new ApiError(400, "Informe nome e e-mail válidos.", "INVALID_USER");
-    const db = await getDb();
+    const db = getDb();
     const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
     if (existing) throw new ApiError(409, "Este e-mail já está cadastrado.", "DUPLICATE_USER");
     const [created] = await db.insert(users).values({ email, name, role: body.role === "admin" ? "admin" : "leader" }).returning();

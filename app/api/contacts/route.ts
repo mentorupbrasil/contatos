@@ -7,7 +7,7 @@ import { displayBrazilianPhone, normalizeBrazilianPhone } from "../../../lib/pho
 export async function GET() {
   try {
     const user = await requireAppUser();
-    const db = await getDb();
+    const db = getDb();
     const scope = user.role === "admin"
       ? ne(contacts.status, "deleted")
       : and(eq(contacts.leaderId, user.id), ne(contacts.status, "deleted"));
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       throw new ApiError(400, error instanceof Error ? error.message : "Telefone inválido.", "INVALID_PHONE");
     }
 
-    const db = await getDb();
+    const db = getDb();
     const [duplicate] = await db.select({ id: contacts.id, status: contacts.status }).from(contacts).where(eq(contacts.phoneE164, phoneE164)).limit(1);
     if (duplicate?.status === "opted_out") throw new ApiError(409, "Este número pediu descadastramento. Registre um novo consentimento antes de reativá-lo.", "CONTACT_OPTED_OUT");
     if (duplicate) throw new ApiError(409, "Este número já está cadastrado na rede.", "DUPLICATE_PHONE");
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       consentAt: now,
     }).returning();
 
-    await db.batch([
+    await Promise.all([
       db.insert(consentEvents).values({ contactId: contact.id, kind: "granted", source: "lideranca_presencial", actorUserId: user.id, detail: "Autorização confirmada no cadastro" }),
       db.insert(auditLogs).values({ actorUserId: user.id, action: "contact.created", entityType: "contact", entityId: String(contact.id), details: JSON.stringify({ source: "lideranca_presencial" }) }),
     ]);

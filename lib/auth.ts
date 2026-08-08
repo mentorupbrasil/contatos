@@ -16,7 +16,7 @@ export async function requireAppUser(): Promise<AppUser> {
   if (!identity) throw new ApiError(401, "Entre para continuar.", "UNAUTHENTICATED");
 
   const email = identity.email.trim().toLowerCase();
-  const db = await getDb();
+  const db = getDb();
   const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (existing?.status === "active") return existing;
   if (existing?.status === "inactive") throw new ApiError(403, "Este acesso está desativado.", "ACCESS_INACTIVE");

@@ -526,7 +526,7 @@ export function CampaignApp({
                 <option value="admin">Administração — também realiza disparos</option>
               </select>
             </label>
-            <div className="access-note"><ShieldCheck size={18} /><span><strong>Sem senha para decorar</strong><small>A pessoa entra com a própria conta e o sistema confere este e-mail.</small></span></div>
+            <div className="access-note"><ShieldCheck size={18} /><span><strong>Entrada por e-mail liberado</strong><small>A pessoa usa o e-mail convidado. O primeiro acesso do sistema vira administração.</small></span></div>
             <button className="button button--primary button--wide" type="submit"><UserPlus size={18} /> Liberar acesso</button>
           </form>
         </Sheet>
@@ -735,7 +735,7 @@ function MoreView({ userName, userEmail, role, onInstall, onManageLeaders }: { u
         ))}
       </section>
 
-      <a className="logout-button" href="/signout-with-chatgpt?return_to=/"><LogOut size={18} /> Sair da conta</a>
+      <a className="logout-button" href="/api/auth/logout"><LogOut size={18} /> Sair da conta</a>
       <p className="version-note">Rede de Lideranças · versão piloto</p>
     </div>
   );
@@ -802,7 +802,16 @@ function mapApiCampaign(item: Record<string, unknown>): Campaign {
 }
 
 function formatDate(value: unknown) {
-  const date = value instanceof Date ? value : new Date(Number(value));
+  let date: Date;
+  if (value instanceof Date) date = value;
+  else if (typeof value === "number") date = new Date(value);
+  else if (typeof value === "string") date = new Date(value);
+  else return "Agora";
   if (Number.isNaN(date.getTime())) return "Agora";
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
