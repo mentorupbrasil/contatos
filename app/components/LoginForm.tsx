@@ -103,20 +103,19 @@ export function LoginForm() {
 
 export function LoginBrand() {
   return (
-    <div className="brand-lockup brand-lockup--large">
-      <Image
-        src="/brand/luzia-logo.svg"
-        alt="Luzia Mary"
-        width={56}
-        height={56}
-        className="brand-logo"
-        priority
-        unoptimized
-      />
-      <span>
-        <strong>Luzia Mary</strong>
-        <small>Rede de Lideranças</small>
-      </span>
+    <div className="login-brand">
+      <div className="brand-plate">
+        <Image
+          src="/brand/luzia-logo-light.png"
+          alt="Luzia Mary"
+          width={320}
+          height={48}
+          className="brand-wordmark"
+          priority
+          unoptimized
+        />
+      </div>
+      <p className="login-brand-sub">Rede de Lideranças</p>
     </div>
   );
 }

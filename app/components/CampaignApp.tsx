@@ -24,6 +24,7 @@ import {
   Settings,
   ShieldCheck,
   Smartphone,
+  MapPin,
   Trophy,
   UserPlus,
   Users,
@@ -36,6 +37,7 @@ import { formatContactPlace, IMPERATRIZ_NEIGHBORHOODS, OTHER_CITY_OPTION } from 
 
 type Tab = "inicio" | "contatos" | "disparos" | "mais";
 type MaisPanel = "menu" | "ranking" | "acessos" | "whatsapp" | "privacidade" | "ajuda";
+type RankingKind = "liderancas" | "bairros" | "municipios";
 type AppRole = "admin" | "leader";
 type ContactStatus = "ativo" | "saiu";
 type CampaignStatus = "agendado" | "enviado" | "rascunho";
@@ -69,6 +71,13 @@ type RankingRow = {
   active: number;
 };
 
+type PlaceRow = {
+  key: string;
+  label: string;
+  detail?: string;
+  active: number;
+};
+
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -86,6 +95,9 @@ export function CampaignApp({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
+  const [rankingByCity, setRankingByCity] = useState<PlaceRow[]>([]);
+  const [rankingByNeighborhood, setRankingByNeighborhood] = useState<PlaceRow[]>([]);
+  const [rankingKind, setRankingKind] = useState<RankingKind>("bairros");
   const [activeBase, setActiveBase] = useState(0);
   const [role, setRole] = useState<AppRole>("leader");
   const [whatsappConnected, setWhatsappConnected] = useState(false);
@@ -116,6 +128,8 @@ export function CampaignApp({
           contacts?: Array<Record<string, unknown>>;
           campaigns?: Array<Record<string, unknown>>;
           ranking?: Array<Record<string, unknown>>;
+          rankingByCity?: Array<Record<string, unknown>>;
+          rankingByNeighborhood?: Array<Record<string, unknown>>;
           whatsappConfigured?: boolean;
         };
         if (!response.ok) throw new Error(result.error || "Não foi possível carregar a rede.");
@@ -130,6 +144,22 @@ export function CampaignApp({
             name: String(row.name ?? "Liderança"),
             role: row.role === "admin" ? "admin" : "leader",
             total: Number(row.total ?? 0),
+            active: Number(row.active ?? 0),
+          })),
+        );
+        setRankingByCity(
+          (result.rankingByCity ?? []).map((row) => ({
+            key: String(row.city ?? "Cidade"),
+            label: String(row.city ?? "Cidade"),
+            detail: "Município",
+            active: Number(row.active ?? 0),
+          })),
+        );
+        setRankingByNeighborhood(
+          (result.rankingByNeighborhood ?? []).map((row) => ({
+            key: `${row.city}-${row.neighborhood}`,
+            label: String(row.neighborhood ?? "Bairro"),
+            detail: String(row.city ?? "Imperatriz"),
             active: Number(row.active ?? 0),
           })),
         );
@@ -383,11 +413,16 @@ export function CampaignApp({
     <div className="app-shell">
       <header className="app-header">
         <div className="brand-lockup">
-          <Image src="/brand/luzia-logo.svg" alt="Luzia Mary" width={38} height={38} className="brand-logo" unoptimized />
-          <span>
-            <strong>Luzia Mary</strong>
-            <small>Rede de Lideranças</small>
-          </span>
+          <div className="brand-plate brand-plate--header">
+            <Image
+              src="/brand/luzia-logo-light.png"
+              alt="Luzia Mary"
+              width={180}
+              height={28}
+              className="brand-wordmark brand-wordmark--header"
+              unoptimized
+            />
+          </div>
         </div>
         <div className="header-actions">
           <button className="icon-button" aria-label="Notificações" type="button">
@@ -417,10 +452,12 @@ export function CampaignApp({
             activeTotal={activeTotal}
             campaign={campaigns.find((item) => item.status === "agendado")}
             ranking={ranking}
+            rankingByNeighborhood={rankingByNeighborhood}
             onAddContact={() => setContactSheet(true)}
             onNewCampaign={() => setCampaignSheet(true)}
             onNavigate={setTab}
-            onOpenRanking={() => {
+            onOpenRanking={(kind) => {
+              setRankingKind(kind);
               setTab("mais");
               setMaisPanel("ranking");
             }}
@@ -463,6 +500,10 @@ export function CampaignApp({
             userEmail={userEmail}
             role={role}
             ranking={ranking}
+            rankingByCity={rankingByCity}
+            rankingByNeighborhood={rankingByNeighborhood}
+            rankingKind={rankingKind}
+            onRankingKind={setRankingKind}
             whatsappConnected={whatsappConnected}
             onInstall={installApp}
             onManageLeaders={() => {
@@ -532,9 +573,9 @@ export function CampaignApp({
             <label className="consent-box">
               <input name="consent" type="checkbox" required />
               <span>
-                <strong>A pessoa autorizou o cadastro</strong>
+                <span className="consent-title">A pessoa autorizou o cadastro</span>
                 <small>
-                  Ela foi informada de que receberá comunicados no WhatsApp e poderá sair quando quiser.
+                  Foi informada de que receberá comunicados no WhatsApp e pode sair quando quiser.
                 </small>
               </span>
             </label>
@@ -565,7 +606,7 @@ export function CampaignApp({
                 <Users size={20} />
               </span>
               <span>
-                <strong>Todos os contatos ativos</strong>
+                <span className="audience-title">Todos os contatos ativos</span>
                 <small>{formatNumber(activeTotal)} pessoas com consentimento</small>
               </span>
               <CheckCircle2 size={20} />
@@ -573,7 +614,7 @@ export function CampaignApp({
             <label className="consent-box consent-box--compact">
               <input name="confirm" type="checkbox" required />
               <span>
-                <strong>Revisei remetente, conteúdo e descadastramento.</strong>
+                <span className="consent-title">Revisei remetente, conteúdo e descadastramento</span>
               </span>
             </label>
             {sending ? (
@@ -620,7 +661,7 @@ export function CampaignApp({
             <div className="access-note">
               <ShieldCheck size={18} />
               <span>
-                <strong>Login + senha</strong>
+                <span className="access-title">Login e senha</span>
                 <small>Entregue e-mail e senha para a pessoa entrar no painel.</small>
               </span>
             </div>
@@ -646,6 +687,7 @@ function HomeView({
   activeTotal,
   campaign,
   ranking,
+  rankingByNeighborhood,
   onAddContact,
   onNewCampaign,
   onNavigate,
@@ -658,10 +700,11 @@ function HomeView({
   activeTotal: number;
   campaign?: Campaign;
   ranking: RankingRow[];
+  rankingByNeighborhood: PlaceRow[];
   onAddContact: () => void;
   onNewCampaign: () => void;
   onNavigate: (tab: Tab) => void;
-  onOpenRanking: () => void;
+  onOpenRanking: (kind: RankingKind) => void;
   whatsappConnected: boolean;
   canSend: boolean;
   onBlockedAction: () => void;
@@ -717,14 +760,32 @@ function HomeView({
       <section className="section-card">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Ranking</span>
-            <h2>Lideranças</h2>
+            <span className="eyebrow">Por local</span>
+            <h2>Bairros com mais contatos</h2>
           </div>
-          <button className="text-button" type="button" onClick={onOpenRanking}>
+          <button className="text-button" type="button" onClick={() => onOpenRanking("bairros")}>
             Ver tudo <ChevronRight size={17} />
           </button>
         </div>
-        <RankingList ranking={ranking.slice(0, 5)} compact />
+        <PlaceRankingList
+          rows={rankingByNeighborhood.slice(0, 5)}
+          emptyTitle="Ainda sem bairros"
+          emptyNote="Cadastre contatos de Imperatriz para ver o mapa da rede."
+          compact
+        />
+      </section>
+
+      <section className="section-card">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">Equipe</span>
+            <h2>Lideranças</h2>
+          </div>
+          <button className="text-button" type="button" onClick={() => onOpenRanking("liderancas")}>
+            Ver tudo <ChevronRight size={17} />
+          </button>
+        </div>
+        <LeaderRankingList ranking={ranking.slice(0, 5)} compact />
       </section>
 
       {campaign && (
@@ -742,13 +803,13 @@ function HomeView({
             <span>
               <CalendarClock size={18} />
               <small>
-                Quando<strong>{campaign.date}</strong>
+                Quando<span className="meta-value">{campaign.date}</span>
               </small>
             </span>
             <span>
               <Users size={18} />
               <small>
-                Destinatários<strong>{formatNumber(campaign.recipients)}</strong>
+                Destinatários<span className="meta-value">{formatNumber(campaign.recipients)}</span>
               </small>
             </span>
           </div>
@@ -761,12 +822,12 @@ function HomeView({
   );
 }
 
-function RankingList({ ranking, compact }: { ranking: RankingRow[]; compact?: boolean }) {
+function LeaderRankingList({ ranking, compact }: { ranking: RankingRow[]; compact?: boolean }) {
   if (ranking.length === 0) {
     return (
       <div className="empty-state" style={{ padding: compact ? "24px 8px" : undefined }}>
         <Trophy size={28} />
-        <strong>Ainda sem ranking</strong>
+        <span className="empty-title">Ainda sem ranking</span>
         <span>Cadastre contatos para aparecer aqui.</span>
       </div>
     );
@@ -775,13 +836,52 @@ function RankingList({ ranking, compact }: { ranking: RankingRow[]; compact?: bo
     <ol className={`ranking-list ${compact ? "ranking-list--compact" : ""}`}>
       {ranking.map((row, index) => (
         <li key={row.leaderId}>
-          <span className="ranking-pos">{index + 1}º</span>
+          <span className="ranking-pos">{index + 1}</span>
           <span className="ranking-main">
-            <strong>{row.name}</strong>
+            <span className="ranking-name">{row.name}</span>
             <small>{row.role === "admin" ? "Administração" : "Liderança"}</small>
           </span>
           <span className="ranking-score">
-            <strong>{formatNumber(row.active)}</strong>
+            <span className="ranking-count">{formatNumber(row.active)}</span>
+            <small>ativos</small>
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function PlaceRankingList({
+  rows,
+  emptyTitle,
+  emptyNote,
+  compact,
+}: {
+  rows: PlaceRow[];
+  emptyTitle: string;
+  emptyNote: string;
+  compact?: boolean;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="empty-state" style={{ padding: compact ? "24px 8px" : undefined }}>
+        <MapPin size={28} />
+        <span className="empty-title">{emptyTitle}</span>
+        <span>{emptyNote}</span>
+      </div>
+    );
+  }
+  return (
+    <ol className={`ranking-list ${compact ? "ranking-list--compact" : ""}`}>
+      {rows.map((row, index) => (
+        <li key={row.key}>
+          <span className="ranking-pos">{index + 1}</span>
+          <span className="ranking-main">
+            <span className="ranking-name">{row.label}</span>
+            {row.detail && <small>{row.detail}</small>}
+          </span>
+          <span className="ranking-score">
+            <span className="ranking-count">{formatNumber(row.active)}</span>
             <small>ativos</small>
           </span>
         </li>
@@ -981,6 +1081,10 @@ function MoreView({
   userEmail,
   role,
   ranking,
+  rankingByCity,
+  rankingByNeighborhood,
+  rankingKind,
+  onRankingKind,
   whatsappConnected,
   onInstall,
   onManageLeaders,
@@ -991,6 +1095,10 @@ function MoreView({
   userEmail: string;
   role: AppRole;
   ranking: RankingRow[];
+  rankingByCity: PlaceRow[];
+  rankingByNeighborhood: PlaceRow[];
+  rankingKind: RankingKind;
+  onRankingKind: (kind: RankingKind) => void;
   whatsappConnected: boolean;
   onInstall: () => void;
   onManageLeaders: () => void;
@@ -1003,13 +1111,52 @@ function MoreView({
         </button>
         <section className="page-title-row">
           <div>
-            <span className="eyebrow">Rede</span>
-            <h1>Ranking</h1>
-            <p>Quem mais cadastrou contatos ativos</p>
+            <span className="eyebrow">Mapa da rede</span>
+            <h1>Rankings</h1>
+            <p>Quantos contatos ativos em cada lugar e liderança</p>
           </div>
         </section>
+
+        <div className="rank-tabs" role="tablist" aria-label="Tipo de ranking">
+          <button
+            type="button"
+            className={rankingKind === "bairros" ? "active" : ""}
+            onClick={() => onRankingKind("bairros")}
+          >
+            Bairros
+          </button>
+          <button
+            type="button"
+            className={rankingKind === "municipios" ? "active" : ""}
+            onClick={() => onRankingKind("municipios")}
+          >
+            Municípios
+          </button>
+          <button
+            type="button"
+            className={rankingKind === "liderancas" ? "active" : ""}
+            onClick={() => onRankingKind("liderancas")}
+          >
+            Lideranças
+          </button>
+        </div>
+
         <section className="section-card">
-          <RankingList ranking={ranking} />
+          {rankingKind === "bairros" && (
+            <PlaceRankingList
+              rows={rankingByNeighborhood}
+              emptyTitle="Nenhum bairro ainda"
+              emptyNote="Contatos de Imperatriz aparecem aqui por bairro."
+            />
+          )}
+          {rankingKind === "municipios" && (
+            <PlaceRankingList
+              rows={rankingByCity}
+              emptyTitle="Nenhum município ainda"
+              emptyNote="Imperatriz e outras cidades cadastradas aparecem aqui."
+            />
+          )}
+          {rankingKind === "liderancas" && <LeaderRankingList ranking={ranking} />}
         </section>
       </div>
     );
@@ -1114,7 +1261,7 @@ function MoreView({
           <ol style={{ margin: 0, paddingLeft: 18, color: "var(--muted)", fontSize: 13, lineHeight: 1.7 }}>
             <li>Cadastre só com consentimento verbal.</li>
             <li>Em Imperatriz, escolha o bairro. Em outra cidade, informe só o município.</li>
-            <li>O ranking mostra quantos contatos ativos cada liderança tem.</li>
+            <li>Os rankings mostram contatos ativos por bairro, município e liderança.</li>
             <li>Disparos ficam com a administração.</li>
           </ol>
         </section>
@@ -1123,7 +1270,7 @@ function MoreView({
   }
 
   const items = [
-    { id: "ranking" as const, icon: <Trophy size={20} />, title: "Ranking de lideranças", note: "Quantos contatos cada uma tem" },
+    { id: "ranking" as const, icon: <Trophy size={20} />, title: "Rankings da rede", note: "Bairros, municípios e lideranças" },
     { id: "acessos" as const, icon: <Users size={20} />, title: "Lideranças e acessos", note: "Login, senha e permissões" },
     { id: "whatsapp" as const, icon: <MessageCircle size={20} />, title: "Integração do WhatsApp", note: "Status da conexão oficial" },
     { id: "privacidade" as const, icon: <ShieldCheck size={20} />, title: "Consentimento e privacidade", note: "Registros e saídas" },
@@ -1147,7 +1294,7 @@ function MoreView({
         </span>
         <div>
           <strong>Instalar no celular</strong>
-          <small>Abra como aplicativo, sem precisar de loja.</small>
+          <small>Abra como aplicativo, sem loja.</small>
         </div>
         <Download size={19} />
       </button>
@@ -1156,10 +1303,10 @@ function MoreView({
         {items.map((item) => (
           <button key={item.id} type="button" onClick={() => onPanel(item.id)}>
             <span className="settings-icon">{item.icon}</span>
-            <span>
-              <strong>{item.title}</strong>
-              <small>{item.note}</small>
-            </span>
+          <span>
+            <span className="settings-title">{item.title}</span>
+            <small>{item.note}</small>
+          </span>
             <ChevronRight size={19} />
           </button>
         ))}
@@ -1168,7 +1315,7 @@ function MoreView({
             <Settings size={20} />
           </span>
           <span>
-            <strong>Configurações da rede</strong>
+            <span className="settings-title">Configurações da rede</span>
             <small>Identidade Luzia Mary</small>
           </span>
           <ChevronRight size={19} />
