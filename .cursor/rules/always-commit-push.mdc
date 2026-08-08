@@ -1,0 +1,14 @@
+---
+description: Sempre fazer commit e push ao finalizar mudanças
+alwaysApply: true
+---
+
+# Commit e push automáticos
+
+Sempre que concluir alterações de código neste projeto:
+
+1. Fazer **commit** das mudanças relevantes (sem perguntar).
+2. Fazer **push** para `main` (ou o branch atual) em seguida.
+3. Não perguntar "quer que eu faça commit/push?" — só fazer.
+
+Continuar seguindo o protocolo de segurança do git (não commitar secrets, não force push, não alterar git config).
