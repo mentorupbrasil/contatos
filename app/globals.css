@@ -243,17 +243,27 @@ body.sheet-open { overflow: hidden; }
 .button--ghost { background: rgba(255,255,255,.72); border: 1px solid var(--line); }
 .button--wide { width: 100%; }
 .trust-row {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px 14px;
   margin-top: 26px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.trust-row::-webkit-scrollbar {
+  display: none;
 }
 .trust-row span {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .trust-row svg {
   flex-shrink: 0;
