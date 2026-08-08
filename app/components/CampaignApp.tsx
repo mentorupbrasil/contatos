@@ -707,20 +707,30 @@ export function CampaignApp({
       </main>
 
       <nav className="bottom-nav" aria-label="Navegação principal">
-        <NavButton active={tab === "inicio"} onClick={() => setTab("inicio")} icon={<Home size={21} />} label="Início" />
+        <NavButton
+          active={tab === "inicio"}
+          onClick={() => setTab("inicio")}
+          icon={<Home size={20} strokeWidth={1.85} />}
+          label="Início"
+        />
         <NavButton
           active={tab === "contatos"}
           onClick={() => setTab("contatos")}
-          icon={<ContactRound size={21} />}
+          icon={<ContactRound size={20} strokeWidth={1.85} />}
           label="Contatos"
         />
         <NavButton
           active={tab === "disparos"}
           onClick={() => setTab("disparos")}
-          icon={<MessagesSquare size={21} />}
+          icon={<MessagesSquare size={20} strokeWidth={1.85} />}
           label="Disparos"
         />
-        <NavButton active={tab === "mais"} onClick={() => setTab("mais")} icon={<Menu size={21} />} label="Mais" />
+        <NavButton
+          active={tab === "mais"}
+          onClick={() => setTab("mais")}
+          icon={<MoreHorizontal size={20} strokeWidth={1.85} />}
+          label="Mais"
+        />
       </nav>
 
       {contactSheet && (
@@ -1767,8 +1777,10 @@ function NavButton({
 }) {
   return (
     <button className={active ? "active" : ""} onClick={onClick} type="button">
-      {icon}
-      <span>{label}</span>
+      <span className="nav-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="nav-label">{label}</span>
     </button>
   );
 }
