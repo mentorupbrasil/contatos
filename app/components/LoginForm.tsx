@@ -93,7 +93,7 @@ export function LoginTrust() {
         <LockKeyhole size={16} /> Login por senha
       </span>
       <span>
-        <ShieldCheck size={16} /> Consentimento registrado
+        <ShieldCheck size={16} /> Com autorização
       </span>
       <span>
         <MessageCircle size={16} /> WhatsApp oficial
