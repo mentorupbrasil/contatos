@@ -15,7 +15,6 @@ import {
   Home,
   LoaderCircle,
   LogOut,
-  Menu,
   MessageCircle,
   MessagesSquare,
   MoreHorizontal,
