@@ -2,8 +2,56 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { auditLogs, consentEvents, contacts, users } from "../../../db/schema";
 import { ApiError, apiErrorResponse, requireAppUser } from "../../../lib/auth";
+import { lookupSecao, profileSummary } from "../../../lib/eleitoral";
 import { IMPERATRIZ_NEIGHBORHOODS } from "../../../lib/locations";
 import { displayBrazilianPhone, normalizeBrazilianPhone } from "../../../lib/phone";
+import { parseTitulo } from "../../../lib/titulo";
+
+function electoralFields(body: {
+  titulo?: string;
+  zona?: number | string;
+  secao?: number | string;
+  city?: string;
+}) {
+  const tituloRaw = body.titulo?.trim() ?? "";
+  if (!tituloRaw) {
+    return {
+      tituloNumero: null as string | null,
+      tituloUf: null as string | null,
+      zona: null as number | null,
+      secao: null as number | null,
+      localVotacao: null as string | null,
+      localEndereco: null as string | null,
+      localBairro: null as string | null,
+      perfilSecao: null as string | null,
+    };
+  }
+
+  const titulo = parseTitulo(tituloRaw);
+  if (!titulo.valid) {
+    throw new ApiError(400, titulo.error || "Título eleitoral inválido.", "INVALID_TITULO");
+  }
+
+  const zona = body.zona === "" || body.zona == null ? null : Number(body.zona);
+  const secao = body.secao === "" || body.secao == null ? null : Number(body.secao);
+  const zonaOk = zona == null || (Number.isInteger(zona) && zona > 0);
+  const secaoOk = secao == null || (Number.isInteger(secao) && secao > 0);
+  if (!zonaOk || !secaoOk || (zona == null) !== (secao == null)) {
+    throw new ApiError(400, "Informe zona e seção juntas, como no título.", "INVALID_ZONA_SECAO");
+  }
+
+  const found = zona && secao ? lookupSecao(body.city || "Imperatriz", zona, secao) : null;
+  return {
+    tituloNumero: titulo.digits,
+    tituloUf: titulo.uf,
+    zona,
+    secao,
+    localVotacao: found?.local ?? null,
+    localEndereco: found?.endereco ?? null,
+    localBairro: found?.bairro ?? null,
+    perfilSecao: found ? JSON.stringify(profileSummary(found)) : null,
+  };
+}
 
 export async function GET() {
   try {
@@ -20,6 +68,13 @@ export async function GET() {
         phone: contacts.phoneDisplay,
         neighborhood: contacts.neighborhood,
         city: contacts.city,
+        tituloNumero: contacts.tituloNumero,
+        tituloUf: contacts.tituloUf,
+        zona: contacts.zona,
+        secao: contacts.secao,
+        localVotacao: contacts.localVotacao,
+        localBairro: contacts.localBairro,
+        perfilSecao: contacts.perfilSecao,
         status: contacts.status,
         createdAt: contacts.createdAt,
         leader: users.name,
@@ -45,6 +100,9 @@ export async function POST(request: Request) {
       city?: string;
       otherCity?: boolean;
       consentConfirmed?: boolean;
+      titulo?: string;
+      zona?: number | string;
+      secao?: number | string;
     };
     const name = body.name?.trim() ?? "";
     if (name.length < 2) throw new ApiError(400, "Informe o nome da pessoa.", "NAME_REQUIRED");
@@ -85,6 +143,18 @@ export async function POST(request: Request) {
     }
     if (duplicate) throw new ApiError(409, "Este número já está cadastrado na rede.", "DUPLICATE_PHONE");
 
+    const electoral = electoralFields({ ...body, city });
+    if (electoral.tituloNumero) {
+      const [dupTitulo] = await db
+        .select({ id: contacts.id, status: contacts.status })
+        .from(contacts)
+        .where(eq(contacts.tituloNumero, electoral.tituloNumero))
+        .limit(1);
+      if (dupTitulo && dupTitulo.status !== "deleted") {
+        throw new ApiError(409, "Este título já está cadastrado na rede.", "DUPLICATE_TITULO");
+      }
+    }
+
     const now = new Date();
     const [contact] = await db
       .insert(contacts)
@@ -94,6 +164,7 @@ export async function POST(request: Request) {
         phoneDisplay: displayBrazilianPhone(phoneE164),
         neighborhood,
         city,
+        ...electoral,
         leaderId: user.id,
         consentAt: now,
       })
@@ -112,7 +183,7 @@ export async function POST(request: Request) {
         action: "contact.created",
         entityType: "contact",
         entityId: String(contact.id),
-        details: JSON.stringify({ source: "lideranca_presencial", city }),
+        details: JSON.stringify({ source: "lideranca_presencial", city, zona: electoral.zona, secao: electoral.secao }),
       }),
     ]);
 

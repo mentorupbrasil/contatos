@@ -27,6 +27,7 @@ export async function GET() {
       ranking,
       rankingByCity,
       rankingByNeighborhood,
+      rankingByZona,
     ] = await Promise.all([
       db.select({ totalContacts: count() }).from(contacts).where(contactScope),
       db.select({ activeContacts: count() }).from(contacts).where(activeScope),
@@ -37,6 +38,13 @@ export async function GET() {
           phone: contacts.phoneDisplay,
           neighborhood: contacts.neighborhood,
           city: contacts.city,
+          tituloNumero: contacts.tituloNumero,
+          tituloUf: contacts.tituloUf,
+          zona: contacts.zona,
+          secao: contacts.secao,
+          localVotacao: contacts.localVotacao,
+          localBairro: contacts.localBairro,
+          perfilSecao: contacts.perfilSecao,
           status: contacts.status,
           createdAt: contacts.createdAt,
           leader: users.name,
@@ -81,6 +89,15 @@ export async function GET() {
         .groupBy(contacts.city, contacts.neighborhood)
         .orderBy(sql`count(*) desc`)
         .limit(80),
+      db
+        .select({
+          zona: contacts.zona,
+          active: sql<number>`count(*)::int`,
+        })
+        .from(contacts)
+        .where(and(networkActive, sql`${contacts.zona} is not null`))
+        .groupBy(contacts.zona)
+        .orderBy(sql`count(*) desc`),
     ]);
 
     return Response.json({
@@ -97,6 +114,7 @@ export async function GET() {
       ranking,
       rankingByCity,
       rankingByNeighborhood,
+      rankingByZona,
       whatsappConfigured: isWhatsAppConfigured(),
     });
   } catch (error) {

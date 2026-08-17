@@ -1,7 +1,7 @@
 import { count, eq } from "drizzle-orm";
-import { getChatGPTUser } from "../app/chatgpt-auth";
 import { getDb } from "../db";
 import { users } from "../db/schema";
+import { getSessionUser } from "./session";
 
 export type AppUser = typeof users.$inferSelect;
 
@@ -12,7 +12,7 @@ export class ApiError extends Error {
 }
 
 export async function requireAppUser(): Promise<AppUser> {
-  const identity = await getChatGPTUser();
+  const identity = await getSessionUser();
   if (!identity) throw new ApiError(401, "Entre para continuar.", "UNAUTHENTICATED");
 
   const email = identity.email.trim().toLowerCase();

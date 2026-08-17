@@ -448,7 +448,88 @@ body.sheet-open { overflow: hidden; }
 .filter-scroll::-webkit-scrollbar { display: none; }
 .filter-scroll button { border: 1px solid var(--line); background: var(--card); border-radius: 99px; padding: 8px 12px; white-space: nowrap; font-size: 10px; font-weight: 700; cursor: pointer; }
 .filter-scroll button.active { background: var(--ink); color: white; border-color: var(--ink); }
-.contact-row { min-height: 85px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; padding: 14px; border-bottom: 1px solid var(--line); }
+.sheet-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.lookup-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f4fbf7;
+  border: 1px solid #d8f3e5;
+}
+.lookup-card--warn {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+.lookup-card--ok {
+  background: #f4fbf7;
+}
+.lookup-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: white;
+  color: var(--accent-dark);
+}
+.lookup-card div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.lookup-card strong {
+  font-size: 13px;
+  font-weight: 620;
+}
+.lookup-card small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.contact-row {
+  width: 100%;
+  min-height: 85px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 11px;
+  padding: 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+.contact-detail {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+.contact-detail p {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.contact-detail strong {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.contact-detail span {
+  font-size: 15px;
+  line-height: 1.45;
+}
 .contact-row:last-child { border-bottom: 0; }
 .contact-avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--mint); color: var(--accent-dark); font-size: 11px; font-weight: 820; }
 .contact-main { display: grid; min-width: 0; }

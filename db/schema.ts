@@ -42,6 +42,14 @@ export const contacts = pgTable(
     phoneDisplay: text("phone_display").notNull(),
     neighborhood: text("neighborhood").notNull().default("Não informado"),
     city: text("city").notNull().default("Imperatriz"),
+    tituloNumero: text("titulo_numero"),
+    tituloUf: text("titulo_uf"),
+    zona: integer("zona"),
+    secao: integer("secao"),
+    localVotacao: text("local_votacao"),
+    localEndereco: text("local_endereco"),
+    localBairro: text("local_bairro"),
+    perfilSecao: text("perfil_secao"),
     leaderId: integer("leader_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -54,9 +62,11 @@ export const contacts = pgTable(
   },
   (table) => [
     uniqueIndex("contacts_phone_unique").on(table.phoneE164),
+    uniqueIndex("contacts_titulo_unique").on(table.tituloNumero),
     index("contacts_leader_idx").on(table.leaderId),
     index("contacts_status_idx").on(table.status),
     index("contacts_neighborhood_idx").on(table.neighborhood),
+    index("contacts_zona_idx").on(table.zona),
   ],
 );
 

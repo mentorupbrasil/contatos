@@ -33,11 +33,13 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { formatContactPlace, IMPERATRIZ_NEIGHBORHOODS, OTHER_CITY_OPTION } from "../../lib/locations";
+import { formatContactPlace } from "../../lib/locations";
+import { formatTitulo } from "../../lib/titulo";
+import { ContactForm } from "./ContactForm";
 
 type Tab = "inicio" | "contatos" | "disparos" | "mais";
 type MaisPanel = "menu" | "ranking" | "acessos" | "whatsapp" | "privacidade" | "ajuda";
-type RankingKind = "liderancas" | "bairros" | "municipios";
+type RankingKind = "liderancas" | "bairros" | "municipios" | "zonas";
 type AppRole = "admin" | "leader";
 type ContactStatus = "ativo" | "saiu";
 type CampaignStatus = "agendado" | "enviado" | "rascunho";
@@ -60,6 +62,13 @@ type Contact = {
   leader: string;
   createdAt: string;
   status: ContactStatus;
+  titulo?: string;
+  tituloUf?: string | null;
+  zona?: number | null;
+  secao?: number | null;
+  localVotacao?: string | null;
+  localBairro?: string | null;
+  perfil?: string | null;
 };
 
 type Campaign = {
@@ -118,6 +127,7 @@ export function CampaignApp({
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [rankingByCity, setRankingByCity] = useState<PlaceRow[]>([]);
   const [rankingByNeighborhood, setRankingByNeighborhood] = useState<PlaceRow[]>([]);
+  const [rankingByZona, setRankingByZona] = useState<PlaceRow[]>([]);
   const [rankingKind, setRankingKind] = useState<RankingKind>("bairros");
   const [activeBase, setActiveBase] = useState(0);
   const [role, setRole] = useState<AppRole>("leader");
@@ -127,6 +137,8 @@ export function CampaignApp({
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [contactSheet, setContactSheet] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [campaignSheet, setCampaignSheet] = useState(false);
   const [leaderSheet, setLeaderSheet] = useState(false);
   const [notifySheet, setNotifySheet] = useState(false);
@@ -140,7 +152,6 @@ export function CampaignApp({
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState(0);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
-  const [otherCity, setOtherCity] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const firstName = userName.split(" ")[0] || "Liderança";
@@ -175,6 +186,7 @@ export function CampaignApp({
           ranking?: Array<Record<string, unknown>>;
           rankingByCity?: Array<Record<string, unknown>>;
           rankingByNeighborhood?: Array<Record<string, unknown>>;
+          rankingByZona?: Array<Record<string, unknown>>;
           whatsappConfigured?: boolean;
         };
         if (!dashResponse.ok) throw new Error(result.error || "Não foi possível carregar a rede.");
@@ -209,6 +221,16 @@ export function CampaignApp({
             detail: String(row.city ?? "Imperatriz"),
             active: Number(row.active ?? 0),
           })),
+        );
+        setRankingByZona(
+          (result.rankingByZona ?? [])
+            .filter((row) => row.zona != null)
+            .map((row) => ({
+              key: `zona-${row.zona}`,
+              label: `Zona ${row.zona}`,
+              detail: "Zona eleitoral",
+              active: Number(row.active ?? 0),
+            })),
         );
         setWhatsappConnected(Boolean(result.whatsappConfigured));
 
@@ -253,20 +275,25 @@ export function CampaignApp({
 
   const filterOptions = useMemo(() => {
     const places = new Set<string>(["Todos"]);
+    const zonas = new Set<string>();
     for (const contact of contacts) {
       places.add(contact.city === "Imperatriz" ? contact.neighborhood : contact.city);
+      if (contact.zona) zonas.add(`Zona ${contact.zona}`);
     }
-    return Array.from(places);
+    return [...Array.from(places), ...Array.from(zonas).sort()];
   }, [contacts]);
 
   const filteredContacts = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     return contacts.filter((contact) => {
       const place = contact.city === "Imperatriz" ? contact.neighborhood : contact.city;
-      const matchesFilter = filter === "Todos" || place === filter;
+      const matchesFilter =
+        filter === "Todos" ||
+        place === filter ||
+        (contact.zona != null && filter === `Zona ${contact.zona}`);
       const matchesSearch =
         !term ||
-        `${contact.name} ${contact.phone} ${contact.neighborhood} ${contact.city}`
+        `${contact.name} ${contact.phone} ${contact.neighborhood} ${contact.city} ${contact.titulo ?? ""} ${contact.zona ?? ""} ${contact.secao ?? ""} ${contact.localVotacao ?? ""}`
           .toLocaleLowerCase("pt-BR")
           .includes(term);
       return matchesFilter && matchesSearch;
@@ -340,38 +367,26 @@ export function CampaignApp({
     setInstallPrompt(null);
   }
 
-  async function addContact(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const name = String(form.get("name") || "").trim();
-    const phone = String(form.get("phone") || "").trim();
-    const place = String(form.get("place") || "");
-    const cityName = String(form.get("cityName") || "").trim();
-    if (!name || !phone) return;
-
-    const isOther = place === OTHER_CITY_OPTION || otherCity;
+  async function addContact(payload: Record<string, unknown>) {
+    const name = String(payload.name || "").trim();
+    if (!name) return;
+    setSavingContact(true);
     try {
       const response = await fetch("/api/contacts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          phone,
-          neighborhood: isOther ? "—" : place,
-          city: isOther ? cityName : "Imperatriz",
-          otherCity: isOther,
-          consentConfirmed: true,
-        }),
+        body: JSON.stringify(payload),
       });
       const result = (await response.json()) as { error?: string; contact?: Record<string, unknown> };
       if (!response.ok || !result.contact) throw new Error(result.error || "Não foi possível salvar o contato.");
       setContacts((current) => [mapApiContact(result.contact as Record<string, unknown>), ...current]);
       setActiveBase((current) => current + 1);
       setContactSheet(false);
-      setOtherCity(false);
       showToast(`${name} entrou na rede com consentimento registrado.`);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Não foi possível salvar o contato.");
+    } finally {
+      setSavingContact(false);
     }
   }
 
@@ -649,6 +664,7 @@ export function CampaignApp({
             onFilter={setFilter}
             filters={filterOptions}
             onAdd={() => setContactSheet(true)}
+            onOpen={setSelectedContact}
           />
         )}
 
@@ -682,6 +698,7 @@ export function CampaignApp({
             ranking={ranking}
             rankingByCity={rankingByCity}
             rankingByNeighborhood={rankingByNeighborhood}
+            rankingByZona={rankingByZona}
             rankingKind={rankingKind}
             onRankingKind={setRankingKind}
             whatsappConnected={whatsappConnected}
@@ -733,54 +750,8 @@ export function CampaignApp({
       </nav>
 
       {contactSheet && (
-        <Sheet title="Novo contato" subtitle="Leva menos de um minuto" onClose={() => { setContactSheet(false); setOtherCity(false); }}>
-          <form className="sheet-form" onSubmit={addContact}>
-            <label>
-              Nome completo
-              <input name="name" autoComplete="name" placeholder="Ex.: Maria de Fátima" required />
-            </label>
-            <label>
-              WhatsApp
-              <input name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="(99) 9 9999-9999" required />
-            </label>
-            <label>
-              Local
-              <select
-                name="place"
-                defaultValue=""
-                required={!otherCity}
-                onChange={(event) => setOtherCity(event.target.value === OTHER_CITY_OPTION)}
-              >
-                <option value="" disabled>
-                  Selecione o bairro (Imperatriz)
-                </option>
-                {IMPERATRIZ_NEIGHBORHOODS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-                <option value={OTHER_CITY_OPTION}>Outro município (só cidade)</option>
-              </select>
-            </label>
-            {otherCity && (
-              <label>
-                Cidade
-                <input name="cityName" placeholder="Ex.: Açailândia" required />
-              </label>
-            )}
-            <label className="consent-box">
-              <input name="consent" type="checkbox" required />
-              <span>
-                <span className="consent-title">A pessoa autorizou o cadastro</span>
-                <small>
-                  Foi informada de que receberá comunicados no WhatsApp e pode sair quando quiser.
-                </small>
-              </span>
-            </label>
-            <button className="button button--primary button--wide" type="submit">
-              <Check size={19} /> Salvar contato
-            </button>
-          </form>
+        <Sheet title="Novo contato" subtitle="Nome, título, zona e seção" onClose={() => setContactSheet(false)}>
+          <ContactForm onSubmit={addContact} submitting={savingContact} />
         </Sheet>
       )}
 
@@ -998,6 +969,59 @@ export function CampaignApp({
                 Remover foto
               </button>
             )}
+          </div>
+        </Sheet>
+      )}
+
+      {selectedContact && (
+        <Sheet
+          title={selectedContact.name}
+          subtitle={formatContactPlace(selectedContact.city, selectedContact.neighborhood)}
+          onClose={() => setSelectedContact(null)}
+        >
+          <div className="contact-detail">
+            <p>
+              <strong>WhatsApp</strong>
+              <span>{selectedContact.phone}</span>
+            </p>
+            {selectedContact.titulo && (
+              <p>
+                <strong>Título</strong>
+                <span>
+                  {formatTitulo(selectedContact.titulo)}
+                  {selectedContact.tituloUf ? ` · ${selectedContact.tituloUf}` : ""}
+                </span>
+              </p>
+            )}
+            {(selectedContact.zona || selectedContact.secao) && (
+              <p>
+                <strong>Zona e seção</strong>
+                <span>
+                  Zona {selectedContact.zona ?? "—"} · Seção {selectedContact.secao ?? "—"}
+                </span>
+              </p>
+            )}
+            {selectedContact.localVotacao && (
+              <p>
+                <strong>Local de votação</strong>
+                <span>
+                  {selectedContact.localVotacao}
+                  {selectedContact.localBairro ? ` · ${selectedContact.localBairro}` : ""}
+                </span>
+              </p>
+            )}
+            {selectedContact.perfil && (
+              <p>
+                <strong>Perfil da seção</strong>
+                <span>{selectedContact.perfil}</span>
+              </p>
+            )}
+            <p>
+              <strong>Responsável</strong>
+              <span>
+                {selectedContact.leader} · {selectedContact.createdAt}
+              </span>
+            </p>
           </div>
         </Sheet>
       )}
@@ -1228,6 +1252,7 @@ function ContactsView({
   onFilter,
   filters,
   onAdd,
+  onOpen,
 }: {
   contacts: Contact[];
   search: string;
@@ -1236,6 +1261,7 @@ function ContactsView({
   onFilter: (value: string) => void;
   filters: string[];
   onAdd: () => void;
+  onOpen: (contact: Contact) => void;
 }) {
   return (
     <div className="view-stack">
@@ -1255,7 +1281,7 @@ function ContactsView({
         <input
           value={search}
           onChange={(event) => onSearch(event.target.value)}
-          placeholder="Buscar nome, telefone ou bairro"
+          placeholder="Buscar nome, título, zona ou bairro"
         />
       </label>
 
@@ -1269,7 +1295,7 @@ function ContactsView({
 
       <section className="contact-list section-card section-card--flush">
         {contacts.map((contact) => (
-          <article className="contact-row" key={contact.id}>
+          <button className="contact-row" key={contact.id} type="button" onClick={() => onOpen(contact)}>
             <span className="contact-avatar">{initials(contact.name)}</span>
             <span className="contact-main">
               <strong>{contact.name}</strong>
@@ -1277,13 +1303,16 @@ function ContactsView({
                 {contact.phone} · {formatContactPlace(contact.city, contact.neighborhood)}
               </small>
               <em>
-                Cadastrado por {contact.leader} · {contact.createdAt}
+                {contact.zona
+                  ? `Zona ${contact.zona} · Seção ${contact.secao ?? "—"} · `
+                  : ""}
+                {contact.leader} · {contact.createdAt}
               </em>
             </span>
             <span className={`contact-state ${contact.status === "saiu" ? "contact-state--off" : ""}`}>
               {contact.status === "ativo" ? "Ativo" : "Saiu"}
             </span>
-          </article>
+          </button>
         ))}
         {contacts.length === 0 && (
           <div className="empty-state">
@@ -1415,6 +1444,7 @@ function MoreView({
   ranking,
   rankingByCity,
   rankingByNeighborhood,
+  rankingByZona,
   rankingKind,
   onRankingKind,
   whatsappConnected,
@@ -1433,6 +1463,7 @@ function MoreView({
   ranking: RankingRow[];
   rankingByCity: PlaceRow[];
   rankingByNeighborhood: PlaceRow[];
+  rankingByZona: PlaceRow[];
   rankingKind: RankingKind;
   onRankingKind: (kind: RankingKind) => void;
   whatsappConnected: boolean;
@@ -1472,6 +1503,13 @@ function MoreView({
           </button>
           <button
             type="button"
+            className={rankingKind === "zonas" ? "active" : ""}
+            onClick={() => onRankingKind("zonas")}
+          >
+            Zonas
+          </button>
+          <button
+            type="button"
             className={rankingKind === "liderancas" ? "active" : ""}
             onClick={() => onRankingKind("liderancas")}
           >
@@ -1492,6 +1530,13 @@ function MoreView({
               rows={rankingByCity}
               emptyTitle="Nenhum município ainda"
               emptyNote="Imperatriz e outras cidades cadastradas aparecem aqui."
+            />
+          )}
+          {rankingKind === "zonas" && (
+            <PlaceRankingList
+              rows={rankingByZona}
+              emptyTitle="Nenhuma zona ainda"
+              emptyNote="Cadastre o título com zona e seção para ver este ranking."
             />
           )}
           {rankingKind === "liderancas" && <LeaderRankingList ranking={ranking} />}
@@ -1639,8 +1684,9 @@ function MoreView({
         <section className="section-card">
           <ol style={{ margin: 0, paddingLeft: 18, color: "var(--muted)", fontSize: 13, lineHeight: 1.7 }}>
             <li>Cadastre só com consentimento verbal.</li>
+            <li>Informe o título, a zona e a seção do documento para puxar local de votação e perfil da urna.</li>
             <li>Em Imperatriz, escolha o bairro. Em outra cidade, informe só o município.</li>
-            <li>Os rankings mostram contatos ativos por bairro, município e liderança.</li>
+            <li>Os rankings mostram contatos ativos por bairro, município, zona e liderança.</li>
             <li>Disparos ficam com a administração.</li>
           </ol>
         </section>
@@ -1649,7 +1695,7 @@ function MoreView({
   }
 
   const items = [
-    { id: "ranking" as const, icon: <Trophy size={20} />, title: "Rankings da rede", note: "Bairros, municípios e lideranças" },
+    { id: "ranking" as const, icon: <Trophy size={20} />, title: "Rankings da rede", note: "Bairros, municípios, zonas e lideranças" },
     { id: "acessos" as const, icon: <Users size={20} />, title: "Lideranças e acessos", note: "Login, senha e permissões" },
     { id: "whatsapp" as const, icon: <MessageCircle size={20} />, title: "Integração do WhatsApp", note: "Status da conexão oficial" },
     { id: "privacidade" as const, icon: <ShieldCheck size={20} />, title: "Consentimento e privacidade", note: "Registros e saídas" },
@@ -1843,6 +1889,15 @@ function formatNumber(value: number) {
 }
 
 function mapApiContact(item: Record<string, unknown>): Contact {
+  let perfil: string | null = null;
+  if (typeof item.perfilSecao === "string" && item.perfilSecao) {
+    try {
+      const parsed = JSON.parse(item.perfilSecao) as { texto?: string };
+      perfil = parsed.texto ?? item.perfilSecao;
+    } catch {
+      perfil = item.perfilSecao;
+    }
+  }
   return {
     id: Number(item.id),
     name: String(item.name ?? "Contato"),
@@ -1852,6 +1907,13 @@ function mapApiContact(item: Record<string, unknown>): Contact {
     leader: String(item.leader ?? "Liderança"),
     createdAt: formatDate(item.createdAt),
     status: item.status === "active" ? "ativo" : "saiu",
+    titulo: item.tituloNumero ? String(item.tituloNumero) : undefined,
+    tituloUf: item.tituloUf ? String(item.tituloUf) : null,
+    zona: item.zona == null ? null : Number(item.zona),
+    secao: item.secao == null ? null : Number(item.secao),
+    localVotacao: item.localVotacao ? String(item.localVotacao) : null,
+    localBairro: item.localBairro ? String(item.localBairro) : null,
+    perfil,
   };
 }
 
