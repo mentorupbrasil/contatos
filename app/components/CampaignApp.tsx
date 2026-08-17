@@ -1115,6 +1115,9 @@ function HomeView({
       </section>
 
       <section className="section-card home-rank">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">Por local</span>
             <h2>Bairros com mais contatos</h2>
           </div>
           <button className="text-button" type="button" onClick={() => onOpenRanking("bairros")}>
