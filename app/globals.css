@@ -151,10 +151,31 @@ body.sheet-open { overflow: hidden; }
 .ranking-score { text-align: right; display: grid; gap: 2px; }
 .ranking-count { font-size: 16px; font-weight: 600; color: var(--accent-dark); letter-spacing: -0.02em; }
 .ranking-score small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
+.ranking-bar {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+  background: #ececec;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.ranking-bar i {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  background: var(--accent);
+  border-radius: inherit;
+}
+.home-rank .rank-tabs { margin-top: 16px; }
+.home-rank .section-heading svg { color: var(--accent-dark); margin-top: 8px; flex-shrink: 0; }
+.home-rank .ranking-list {
+  max-height: min(58vh, 560px);
+  overflow: auto;
+}
 
 .rank-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   padding: 4px;
   border-radius: 14px;
@@ -166,9 +187,10 @@ body.sheet-open { overflow: hidden; }
   border-radius: 11px;
   background: transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 550;
   cursor: pointer;
+  padding: 0 4px;
 }
 .rank-tabs button.active {
   background: #fff;
@@ -357,6 +379,66 @@ body.sheet-open { overflow: hidden; }
 .quick-action--primary > span { background: rgba(30,39,35,.12); color: var(--accent-foreground); }
 .quick-action--primary > svg { color: var(--accent-foreground); }
 
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.kpi-card {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 16px;
+  padding: 14px 16px;
+  text-align: left;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 2px;
+}
+button.kpi-card { cursor: pointer; }
+.kpi-card small {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.kpi-card strong {
+  font-size: 22px;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+.kpi-card em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pending-card {
+  width: 100%;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.pending-card > span {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: #fef3c7;
+  color: #b45309;
+}
+.pending-card strong { font-size: 14px; display: block; letter-spacing: -0.02em; }
+.pending-card small { color: #92400e; font-size: 12px; line-height: 1.4; display: block; margin-top: 3px; }
+.pending-card > svg { color: #a3a3a3; }
+
 .section-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 19px; box-shadow: var(--shadow); }
 .section-card--flush { padding: 0; overflow: hidden; }
 .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -443,6 +525,7 @@ body.sheet-open { overflow: hidden; }
 }
 
 .page-title-row { display: flex; align-items: flex-end; justify-content: space-between; padding-top: 2px; }
+.page-title-actions { display: flex; align-items: center; gap: 8px; }
 .page-title-row p, .profile-card p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
 .round-add { width: 48px; height: 48px; border-radius: 14px; background: var(--accent); color: var(--accent-foreground); box-shadow: 0 8px 18px rgba(5, 150, 105, .18); }
 .search-box { height: 52px; border: 1px solid var(--line); background: var(--card); border-radius: 14px; display: flex; align-items: center; gap: 10px; padding: 0 15px; color: #a3a3a3; }
@@ -820,6 +903,7 @@ body.sheet-open { overflow: hidden; }
   .connection-pill { display: inline-flex; }
   .app-main { padding: 32px 24px 44px; }
   .hero-card { min-height: 225px; padding: 25px; }
+  .kpi-strip { grid-template-columns: repeat(4, 1fr); }
   .quick-action strong, .new-campaign-card strong { font-size: 14px; }
   .contact-row { padding: 15px 18px; }
   .contact-main strong { font-size: 13px; }
@@ -1008,12 +1092,12 @@ body.sheet-open { overflow: hidden; }
     align-items: stretch;
   }
   .home-view .welcome-row,
+  .home-view .home-rank,
+  .home-view .kpi-strip,
   .home-view .quick-actions,
+  .home-view .pending-card,
   .home-view .upcoming-card {
     grid-column: 1 / -1;
-  }
-  .home-view .hero-card {
-    min-height: 280px;
   }
   .quick-actions {
     grid-template-columns: 1fr 1fr;

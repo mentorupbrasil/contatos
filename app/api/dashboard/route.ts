@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ne, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { campaigns, contacts, users } from "../../../db/schema";
 import { apiErrorResponse, requireAppUser } from "../../../lib/auth";
@@ -8,6 +8,7 @@ export async function GET() {
   try {
     const user = await requireAppUser();
     const db = getDb();
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const contactScope =
       user.role === "admin"
         ? ne(contacts.status, "deleted")
@@ -22,7 +23,9 @@ export async function GET() {
     const [
       [{ totalContacts }],
       [{ activeContacts }],
-      recentContacts,
+      [{ withTitulo }],
+      [{ newThisWeek }],
+      [{ zonasCovered }],
       recentCampaigns,
       ranking,
       rankingByCity,
@@ -32,29 +35,17 @@ export async function GET() {
       db.select({ totalContacts: count() }).from(contacts).where(contactScope),
       db.select({ activeContacts: count() }).from(contacts).where(activeScope),
       db
-        .select({
-          id: contacts.id,
-          name: contacts.name,
-          phone: contacts.phoneDisplay,
-          neighborhood: contacts.neighborhood,
-          city: contacts.city,
-          tituloNumero: contacts.tituloNumero,
-          tituloUf: contacts.tituloUf,
-          zona: contacts.zona,
-          secao: contacts.secao,
-          localVotacao: contacts.localVotacao,
-          localBairro: contacts.localBairro,
-          perfilSecao: contacts.perfilSecao,
-          status: contacts.status,
-          createdAt: contacts.createdAt,
-          leader: users.name,
-          leaderId: users.id,
-        })
+        .select({ withTitulo: count() })
         .from(contacts)
-        .innerJoin(users, eq(contacts.leaderId, users.id))
-        .where(contactScope)
-        .orderBy(desc(contacts.createdAt))
-        .limit(80),
+        .where(and(activeScope, sql`${contacts.tituloNumero} is not null`)),
+      db
+        .select({ newThisWeek: count() })
+        .from(contacts)
+        .where(and(contactScope, gte(contacts.createdAt, weekAgo))),
+      db
+        .select({ zonasCovered: sql<number>`count(distinct ${contacts.zona})::int` })
+        .from(contacts)
+        .where(and(activeScope, sql`${contacts.zona} is not null`)),
       db.select().from(campaigns).orderBy(desc(campaigns.createdAt)).limit(20),
       db
         .select({
@@ -88,7 +79,7 @@ export async function GET() {
         .where(and(networkActive, eq(contacts.city, "Imperatriz"), ne(contacts.neighborhood, "—")))
         .groupBy(contacts.city, contacts.neighborhood)
         .orderBy(sql`count(*) desc`)
-        .limit(80),
+        .limit(120),
       db
         .select({
           zona: contacts.zona,
@@ -108,8 +99,13 @@ export async function GET() {
         role: user.role,
         avatarUrl: user.avatarUrl,
       },
-      stats: { totalContacts, activeContacts },
-      contacts: recentContacts,
+      stats: {
+        totalContacts,
+        activeContacts,
+        withTitulo,
+        newThisWeek,
+        zonasCovered,
+      },
       campaigns: recentCampaigns,
       ranking,
       rankingByCity,

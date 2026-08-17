@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   Bell,
   CalendarClock,
   Camera,
@@ -96,6 +97,26 @@ type PlaceRow = {
   active: number;
 };
 
+type NetworkStats = {
+  totalContacts: number;
+  activeContacts: number;
+  withTitulo: number;
+  newThisWeek: number;
+  zonasCovered: number;
+};
+
+type DashboardPayload = {
+  error?: string;
+  user?: { role: AppRole; avatarUrl?: string | null };
+  stats?: Partial<NetworkStats>;
+  campaigns?: Array<Record<string, unknown>>;
+  ranking?: Array<Record<string, unknown>>;
+  rankingByCity?: Array<Record<string, unknown>>;
+  rankingByNeighborhood?: Array<Record<string, unknown>>;
+  rankingByZona?: Array<Record<string, unknown>>;
+  whatsappConfigured?: boolean;
+};
+
 type NetworkUser = {
   id: number;
   name: string;
@@ -130,6 +151,13 @@ export function CampaignApp({
   const [rankingByZona, setRankingByZona] = useState<PlaceRow[]>([]);
   const [rankingKind, setRankingKind] = useState<RankingKind>("bairros");
   const [activeBase, setActiveBase] = useState(0);
+  const [stats, setStats] = useState<NetworkStats>({
+    totalContacts: 0,
+    activeContacts: 0,
+    withTitulo: 0,
+    newThisWeek: 0,
+    zonasCovered: 0,
+  });
   const [role, setRole] = useState<AppRole>("leader");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(initialAvatarUrl);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -171,74 +199,83 @@ export function CampaignApp({
 
   useEffect(() => {
     let cancelled = false;
+
+    function applyDashboard(result: DashboardPayload) {
+      setRole(result.user?.role ?? "leader");
+      if (typeof result.user?.avatarUrl === "string") setAvatarUrl(result.user.avatarUrl);
+      else if (result.user?.avatarUrl === null) setAvatarUrl(null);
+      const nextStats: NetworkStats = {
+        totalContacts: Number(result.stats?.totalContacts ?? 0),
+        activeContacts: Number(result.stats?.activeContacts ?? 0),
+        withTitulo: Number(result.stats?.withTitulo ?? 0),
+        newThisWeek: Number(result.stats?.newThisWeek ?? 0),
+        zonasCovered: Number(result.stats?.zonasCovered ?? 0),
+      };
+      setStats(nextStats);
+      setActiveBase(nextStats.activeContacts);
+      setCampaigns((result.campaigns ?? []).map(mapApiCampaign));
+      setRanking(
+        (result.ranking ?? []).map((row) => ({
+          leaderId: Number(row.leaderId),
+          name: String(row.name ?? "Liderança"),
+          role: row.role === "admin" ? "admin" : "leader",
+          total: Number(row.total ?? 0),
+          active: Number(row.active ?? 0),
+        })),
+      );
+      setRankingByCity(
+        (result.rankingByCity ?? []).map((row) => ({
+          key: String(row.city ?? "Cidade"),
+          label: String(row.city ?? "Cidade"),
+          detail: "Município",
+          active: Number(row.active ?? 0),
+        })),
+      );
+      setRankingByNeighborhood(
+        (result.rankingByNeighborhood ?? []).map((row) => ({
+          key: `${row.city}-${row.neighborhood}`,
+          label: String(row.neighborhood ?? "Bairro"),
+          detail: String(row.city ?? "Imperatriz"),
+          active: Number(row.active ?? 0),
+        })),
+      );
+      setRankingByZona(
+        (result.rankingByZona ?? [])
+          .filter((row) => row.zona != null)
+          .map((row) => ({
+            key: `zona-${row.zona}`,
+            label: `Zona ${row.zona}`,
+            detail: "Zona eleitoral",
+            active: Number(row.active ?? 0),
+          })),
+      );
+      setWhatsappConnected(Boolean(result.whatsappConfigured));
+    }
+
     async function loadDashboard() {
       try {
-        const [dashResponse, notifyResponse] = await Promise.all([
+        const [dashResponse, notifyResponse, contactsResponse] = await Promise.all([
           fetch("/api/dashboard", { cache: "no-store" }),
           fetch("/api/notifications", { cache: "no-store" }),
+          fetch("/api/contacts", { cache: "no-store" }),
         ]);
-        const result = (await dashResponse.json()) as {
-          error?: string;
-          user?: { role: AppRole; avatarUrl?: string | null };
-          stats?: { activeContacts: number };
-          contacts?: Array<Record<string, unknown>>;
-          campaigns?: Array<Record<string, unknown>>;
-          ranking?: Array<Record<string, unknown>>;
-          rankingByCity?: Array<Record<string, unknown>>;
-          rankingByNeighborhood?: Array<Record<string, unknown>>;
-          rankingByZona?: Array<Record<string, unknown>>;
-          whatsappConfigured?: boolean;
-        };
+        const result = (await dashResponse.json()) as DashboardPayload;
         if (!dashResponse.ok) throw new Error(result.error || "Não foi possível carregar a rede.");
         if (cancelled) return;
-        setRole(result.user?.role ?? "leader");
-        if (typeof result.user?.avatarUrl === "string") setAvatarUrl(result.user.avatarUrl);
-        else if (result.user?.avatarUrl === null) setAvatarUrl(null);
-        setActiveBase(Number(result.stats?.activeContacts ?? 0));
-        setContacts((result.contacts ?? []).map(mapApiContact));
-        setCampaigns((result.campaigns ?? []).map(mapApiCampaign));
-        setRanking(
-          (result.ranking ?? []).map((row) => ({
-            leaderId: Number(row.leaderId),
-            name: String(row.name ?? "Liderança"),
-            role: row.role === "admin" ? "admin" : "leader",
-            total: Number(row.total ?? 0),
-            active: Number(row.active ?? 0),
-          })),
-        );
-        setRankingByCity(
-          (result.rankingByCity ?? []).map((row) => ({
-            key: String(row.city ?? "Cidade"),
-            label: String(row.city ?? "Cidade"),
-            detail: "Município",
-            active: Number(row.active ?? 0),
-          })),
-        );
-        setRankingByNeighborhood(
-          (result.rankingByNeighborhood ?? []).map((row) => ({
-            key: `${row.city}-${row.neighborhood}`,
-            label: String(row.neighborhood ?? "Bairro"),
-            detail: String(row.city ?? "Imperatriz"),
-            active: Number(row.active ?? 0),
-          })),
-        );
-        setRankingByZona(
-          (result.rankingByZona ?? [])
-            .filter((row) => row.zona != null)
-            .map((row) => ({
-              key: `zona-${row.zona}`,
-              label: `Zona ${row.zona}`,
-              detail: "Zona eleitoral",
-              active: Number(row.active ?? 0),
-            })),
-        );
-        setWhatsappConnected(Boolean(result.whatsappConfigured));
+        applyDashboard(result);
+
+        if (contactsResponse.ok) {
+          const contactResult = (await contactsResponse.json()) as {
+            contacts?: Array<Record<string, unknown>>;
+          };
+          if (!cancelled) setContacts((contactResult.contacts ?? []).map(mapApiContact));
+        }
 
         if (notifyResponse.ok) {
           const notifyResult = (await notifyResponse.json()) as {
             notifications?: AppNotification[];
           };
-          setNotifications(notifyResult.notifications ?? []);
+          if (!cancelled) setNotifications(notifyResult.notifications ?? []);
         }
       } catch (error) {
         if (!cancelled) {
@@ -274,13 +311,13 @@ export function CampaignApp({
   }, [tab]);
 
   const filterOptions = useMemo(() => {
-    const places = new Set<string>(["Todos"]);
+    const places = new Set<string>();
     const zonas = new Set<string>();
     for (const contact of contacts) {
       places.add(contact.city === "Imperatriz" ? contact.neighborhood : contact.city);
       if (contact.zona) zonas.add(`Zona ${contact.zona}`);
     }
-    return [...Array.from(places), ...Array.from(zonas).sort()];
+    return ["Todos", "Sem título", ...Array.from(places), ...Array.from(zonas).sort()];
   }, [contacts]);
 
   const filteredContacts = useMemo(() => {
@@ -289,6 +326,7 @@ export function CampaignApp({
       const place = contact.city === "Imperatriz" ? contact.neighborhood : contact.city;
       const matchesFilter =
         filter === "Todos" ||
+        (filter === "Sem título" && !contact.titulo) ||
         place === filter ||
         (contact.zona != null && filter === `Zona ${contact.zona}`);
       const matchesSearch =
@@ -381,8 +419,65 @@ export function CampaignApp({
       if (!response.ok || !result.contact) throw new Error(result.error || "Não foi possível salvar o contato.");
       setContacts((current) => [mapApiContact(result.contact as Record<string, unknown>), ...current]);
       setActiveBase((current) => current + 1);
+      setStats((current) => ({
+        ...current,
+        totalContacts: current.totalContacts + 1,
+        activeContacts: current.activeContacts + 1,
+        newThisWeek: current.newThisWeek + 1,
+        withTitulo: payload.titulo ? current.withTitulo + 1 : current.withTitulo,
+      }));
       setContactSheet(false);
       showToast(`${name} entrou na rede com consentimento registrado.`);
+      void fetch("/api/dashboard", { cache: "no-store" })
+        .then((response) => response.json() as Promise<DashboardPayload>)
+        .then((fresh) => {
+          if (fresh.error) return;
+          const nextStats: NetworkStats = {
+            totalContacts: Number(fresh.stats?.totalContacts ?? 0),
+            activeContacts: Number(fresh.stats?.activeContacts ?? 0),
+            withTitulo: Number(fresh.stats?.withTitulo ?? 0),
+            newThisWeek: Number(fresh.stats?.newThisWeek ?? 0),
+            zonasCovered: Number(fresh.stats?.zonasCovered ?? 0),
+          };
+          setStats(nextStats);
+          setActiveBase(nextStats.activeContacts);
+          setRanking(
+            (fresh.ranking ?? []).map((row) => ({
+              leaderId: Number(row.leaderId),
+              name: String(row.name ?? "Liderança"),
+              role: row.role === "admin" ? "admin" : "leader",
+              total: Number(row.total ?? 0),
+              active: Number(row.active ?? 0),
+            })),
+          );
+          setRankingByCity(
+            (fresh.rankingByCity ?? []).map((row) => ({
+              key: String(row.city ?? "Cidade"),
+              label: String(row.city ?? "Cidade"),
+              detail: "Município",
+              active: Number(row.active ?? 0),
+            })),
+          );
+          setRankingByNeighborhood(
+            (fresh.rankingByNeighborhood ?? []).map((row) => ({
+              key: `${row.city}-${row.neighborhood}`,
+              label: String(row.neighborhood ?? "Bairro"),
+              detail: String(row.city ?? "Imperatriz"),
+              active: Number(row.active ?? 0),
+            })),
+          );
+          setRankingByZona(
+            (fresh.rankingByZona ?? [])
+              .filter((row) => row.zona != null)
+              .map((row) => ({
+                key: `zona-${row.zona}`,
+                label: `Zona ${row.zona}`,
+                detail: "Zona eleitoral",
+                active: Number(row.active ?? 0),
+              })),
+          );
+        })
+        .catch(() => undefined);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Não foi possível salvar o contato.");
     } finally {
@@ -667,17 +762,20 @@ export function CampaignApp({
         {tab === "inicio" && (
           <HomeView
             firstName={firstName}
-            activeTotal={activeTotal}
+            stats={stats}
             campaign={campaigns.find((item) => item.status === "agendado")}
             ranking={ranking}
+            rankingByCity={rankingByCity}
             rankingByNeighborhood={rankingByNeighborhood}
+            rankingByZona={rankingByZona}
+            rankingKind={rankingKind}
+            onRankingKind={setRankingKind}
             onAddContact={() => setContactSheet(true)}
             onNewCampaign={() => setCampaignSheet(true)}
             onNavigate={setTab}
-            onOpenRanking={(kind) => {
-              setRankingKind(kind);
-              setTab("mais");
-              setMaisPanel("ranking");
+            onPendingTitulo={() => {
+              setFilter("Sem título");
+              setTab("contatos");
             }}
             whatsappConnected={whatsappConnected}
             canSend={role === "admin"}
@@ -695,6 +793,14 @@ export function CampaignApp({
             filters={filterOptions}
             onAdd={() => setContactSheet(true)}
             onOpen={setSelectedContact}
+            onExport={() => {
+              if (filteredContacts.length === 0) {
+                showToast("Não há contatos para exportar neste filtro.");
+                return;
+              }
+              exportContactsCsv(filteredContacts);
+              showToast("Planilha baixada.");
+            }}
           />
         )}
 
@@ -1041,52 +1147,91 @@ export function CampaignApp({
 
 function HomeView({
   firstName,
-  activeTotal,
+  stats,
   campaign,
   ranking,
+  rankingByCity,
   rankingByNeighborhood,
+  rankingByZona,
+  rankingKind,
+  onRankingKind,
   onAddContact,
   onNewCampaign,
   onNavigate,
-  onOpenRanking,
+  onPendingTitulo,
   whatsappConnected,
   canSend,
   onBlockedAction,
 }: {
   firstName: string;
-  activeTotal: number;
+  stats: NetworkStats;
   campaign?: Campaign;
   ranking: RankingRow[];
+  rankingByCity: PlaceRow[];
   rankingByNeighborhood: PlaceRow[];
+  rankingByZona: PlaceRow[];
+  rankingKind: RankingKind;
+  onRankingKind: (kind: RankingKind) => void;
   onAddContact: () => void;
   onNewCampaign: () => void;
   onNavigate: (tab: Tab) => void;
-  onOpenRanking: (kind: RankingKind) => void;
+  onPendingTitulo: () => void;
   whatsappConnected: boolean;
   canSend: boolean;
   onBlockedAction: () => void;
 }) {
+  const missingTitulo = Math.max(0, stats.activeContacts - stats.withTitulo);
+  const tituloPct =
+    stats.activeContacts > 0 ? Math.round((stats.withTitulo / stats.activeContacts) * 100) : 0;
+
   return (
     <div className="view-stack home-view">
       <section className="welcome-row">
         <div>
           <span>Olá, {firstName}</span>
-          <h1>Vamos movimentar a rede?</h1>
+          <h1>Ranking da rede</h1>
         </div>
         <span className={`connection-pill ${whatsappConnected ? "" : "connection-pill--off"}`}>
           <Wifi size={14} /> {whatsappConnected ? "WhatsApp conectado" : "Configuração pendente"}
         </span>
       </section>
 
-      <section className="hero-card">
-        <div className="hero-card__top">
-          <span>Seus contatos ativos</span>
-          <button aria-label="Ver contatos" type="button" onClick={() => onNavigate("contatos")}>
-            <ChevronRight size={20} />
-          </button>
+      <section className="section-card home-rank">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">Mapa da base</span>
+            <h2>Quem puxa a rede</h2>
+          </div>
+          <Trophy size={22} aria-hidden="true" />
         </div>
-        <strong className="hero-number">{formatNumber(activeTotal)}</strong>
-        <div className="hero-trend">Base da rede Luzia Mary</div>
+        <RankingBoard
+          ranking={ranking}
+          rankingByCity={rankingByCity}
+          rankingByNeighborhood={rankingByNeighborhood}
+          rankingByZona={rankingByZona}
+          rankingKind={rankingKind}
+          onRankingKind={onRankingKind}
+        />
+      </section>
+
+      <section className="kpi-strip" aria-label="Indicadores da rede">
+        <button className="kpi-card" type="button" onClick={() => onNavigate("contatos")}>
+          <small>Ativos</small>
+          <strong>{formatNumber(stats.activeContacts)}</strong>
+        </button>
+        <div className="kpi-card">
+          <small>Com título</small>
+          <strong>{tituloPct}%</strong>
+          <em>{formatNumber(stats.withTitulo)} cadastros</em>
+        </div>
+        <div className="kpi-card">
+          <small>Zonas</small>
+          <strong>{formatNumber(stats.zonasCovered)}</strong>
+        </div>
+        <div className="kpi-card">
+          <small>Novos · 7 dias</small>
+          <strong>{formatNumber(stats.newThisWeek)}</strong>
+        </div>
       </section>
 
       <section className="quick-actions" aria-label="Ações rápidas">
@@ -1114,36 +1259,20 @@ function HomeView({
         </button>
       </section>
 
-      <section className="section-card home-rank">
-        <div className="section-heading">
+      {missingTitulo > 0 && (
+        <button className="pending-card" type="button" onClick={onPendingTitulo}>
+          <span>
+            <AlertTriangle size={20} />
+          </span>
           <div>
-            <span className="eyebrow">Por local</span>
-            <h2>Bairros com mais contatos</h2>
+            <strong>
+              {formatNumber(missingTitulo)} contato{missingTitulo === 1 ? "" : "s"} sem título
+            </strong>
+            <small>Complete zona e seção para o ranking eleitoral ficar preciso.</small>
           </div>
-          <button className="text-button" type="button" onClick={() => onOpenRanking("bairros")}>
-            Ver tudo <ChevronRight size={17} />
-          </button>
-        </div>
-        <PlaceRankingList
-          rows={rankingByNeighborhood.slice(0, 5)}
-          emptyTitle="Ainda sem bairros"
-          emptyNote="Cadastre contatos de Imperatriz para ver o mapa da rede."
-          compact
-        />
-      </section>
-
-      <section className="section-card home-rank">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">Equipe</span>
-            <h2>Lideranças</h2>
-          </div>
-          <button className="text-button" type="button" onClick={() => onOpenRanking("liderancas")}>
-            Ver tudo <ChevronRight size={17} />
-          </button>
-        </div>
-        <LeaderRankingList ranking={ranking.slice(0, 5)} compact />
-      </section>
+          <ChevronRight size={18} />
+        </button>
+      )}
 
       {campaign && (
         <section className="section-card upcoming-card">
@@ -1179,6 +1308,79 @@ function HomeView({
   );
 }
 
+function RankingBoard({
+  ranking,
+  rankingByCity,
+  rankingByNeighborhood,
+  rankingByZona,
+  rankingKind,
+  onRankingKind,
+}: {
+  ranking: RankingRow[];
+  rankingByCity: PlaceRow[];
+  rankingByNeighborhood: PlaceRow[];
+  rankingByZona: PlaceRow[];
+  rankingKind: RankingKind;
+  onRankingKind: (kind: RankingKind) => void;
+}) {
+  return (
+    <>
+      <div className="rank-tabs" role="tablist" aria-label="Tipo de ranking">
+        <button
+          type="button"
+          className={rankingKind === "bairros" ? "active" : ""}
+          onClick={() => onRankingKind("bairros")}
+        >
+          Bairros
+        </button>
+        <button
+          type="button"
+          className={rankingKind === "municipios" ? "active" : ""}
+          onClick={() => onRankingKind("municipios")}
+        >
+          Municípios
+        </button>
+        <button
+          type="button"
+          className={rankingKind === "zonas" ? "active" : ""}
+          onClick={() => onRankingKind("zonas")}
+        >
+          Zonas
+        </button>
+        <button
+          type="button"
+          className={rankingKind === "liderancas" ? "active" : ""}
+          onClick={() => onRankingKind("liderancas")}
+        >
+          Lideranças
+        </button>
+      </div>
+      {rankingKind === "bairros" && (
+        <PlaceRankingList
+          rows={rankingByNeighborhood}
+          emptyTitle="Ainda sem bairros"
+          emptyNote="Cadastre contatos de Imperatriz para ver o mapa da rede."
+        />
+      )}
+      {rankingKind === "municipios" && (
+        <PlaceRankingList
+          rows={rankingByCity}
+          emptyTitle="Ainda sem municípios"
+          emptyNote="Imperatriz e outras cidades cadastradas aparecem aqui."
+        />
+      )}
+      {rankingKind === "zonas" && (
+        <PlaceRankingList
+          rows={rankingByZona}
+          emptyTitle="Ainda sem zonas"
+          emptyNote="Cadastre o título com zona e seção para ver este ranking."
+        />
+      )}
+      {rankingKind === "liderancas" && <LeaderRankingList ranking={ranking} />}
+    </>
+  );
+}
+
 function LeaderRankingList({ ranking, compact }: { ranking: RankingRow[]; compact?: boolean }) {
   if (ranking.length === 0) {
     return (
@@ -1189,6 +1391,7 @@ function LeaderRankingList({ ranking, compact }: { ranking: RankingRow[]; compac
       </div>
     );
   }
+  const max = Math.max(...ranking.map((row) => row.active), 1);
   return (
     <ol className={`ranking-list ${compact ? "ranking-list--compact" : ""}`}>
       {ranking.map((row, index) => (
@@ -1197,6 +1400,9 @@ function LeaderRankingList({ ranking, compact }: { ranking: RankingRow[]; compac
           <span className="ranking-main">
             <span className="ranking-name">{row.name}</span>
             <small>{row.role === "admin" ? "Administração" : "Liderança"}</small>
+            <span className="ranking-bar" aria-hidden="true">
+              <i style={{ width: `${Math.round((row.active / max) * 100)}%` }} />
+            </span>
           </span>
           <span className="ranking-score">
             <span className="ranking-count">{formatNumber(row.active)}</span>
@@ -1228,6 +1434,7 @@ function PlaceRankingList({
       </div>
     );
   }
+  const max = Math.max(...rows.map((row) => row.active), 1);
   return (
     <ol className={`ranking-list ${compact ? "ranking-list--compact" : ""}`}>
       {rows.map((row, index) => (
@@ -1236,6 +1443,9 @@ function PlaceRankingList({
           <span className="ranking-main">
             <span className="ranking-name">{row.label}</span>
             {row.detail && <small>{row.detail}</small>}
+            <span className="ranking-bar" aria-hidden="true">
+              <i style={{ width: `${Math.round((row.active / max) * 100)}%` }} />
+            </span>
           </span>
           <span className="ranking-score">
             <span className="ranking-count">{formatNumber(row.active)}</span>
@@ -1256,6 +1466,7 @@ function ContactsView({
   filters,
   onAdd,
   onOpen,
+  onExport,
 }: {
   contacts: Contact[];
   search: string;
@@ -1265,6 +1476,7 @@ function ContactsView({
   filters: string[];
   onAdd: () => void;
   onOpen: (contact: Contact) => void;
+  onExport: () => void;
 }) {
   return (
     <div className="view-stack">
@@ -1274,9 +1486,14 @@ function ContactsView({
           <h1>Contatos</h1>
           <p>{contacts.length} exibidos</p>
         </div>
-        <button className="round-add" onClick={onAdd} aria-label="Adicionar contato" type="button">
-          <Plus size={24} />
-        </button>
+        <div className="page-title-actions">
+          <button className="icon-button" onClick={onExport} aria-label="Exportar planilha" type="button">
+            <Download size={20} />
+          </button>
+          <button className="round-add" onClick={onAdd} aria-label="Adicionar contato" type="button">
+            <Plus size={24} />
+          </button>
+        </div>
       </section>
 
       <label className="search-box">
@@ -1485,64 +1702,19 @@ function MoreView({
           <div>
             <span className="eyebrow">Mapa da rede</span>
             <h1>Rankings</h1>
-            <p>Quantos contatos ativos em cada lugar e liderança</p>
+            <p>O mesmo painel do Início, com a lista completa</p>
           </div>
         </section>
 
-        <div className="rank-tabs" role="tablist" aria-label="Tipo de ranking">
-          <button
-            type="button"
-            className={rankingKind === "bairros" ? "active" : ""}
-            onClick={() => onRankingKind("bairros")}
-          >
-            Bairros
-          </button>
-          <button
-            type="button"
-            className={rankingKind === "municipios" ? "active" : ""}
-            onClick={() => onRankingKind("municipios")}
-          >
-            Municípios
-          </button>
-          <button
-            type="button"
-            className={rankingKind === "zonas" ? "active" : ""}
-            onClick={() => onRankingKind("zonas")}
-          >
-            Zonas
-          </button>
-          <button
-            type="button"
-            className={rankingKind === "liderancas" ? "active" : ""}
-            onClick={() => onRankingKind("liderancas")}
-          >
-            Lideranças
-          </button>
-        </div>
-
         <section className="section-card">
-          {rankingKind === "bairros" && (
-            <PlaceRankingList
-              rows={rankingByNeighborhood}
-              emptyTitle="Nenhum bairro ainda"
-              emptyNote="Contatos de Imperatriz aparecem aqui por bairro."
-            />
-          )}
-          {rankingKind === "municipios" && (
-            <PlaceRankingList
-              rows={rankingByCity}
-              emptyTitle="Nenhum município ainda"
-              emptyNote="Imperatriz e outras cidades cadastradas aparecem aqui."
-            />
-          )}
-          {rankingKind === "zonas" && (
-            <PlaceRankingList
-              rows={rankingByZona}
-              emptyTitle="Nenhuma zona ainda"
-              emptyNote="Cadastre o título com zona e seção para ver este ranking."
-            />
-          )}
-          {rankingKind === "liderancas" && <LeaderRankingList ranking={ranking} />}
+          <RankingBoard
+            ranking={ranking}
+            rankingByCity={rankingByCity}
+            rankingByNeighborhood={rankingByNeighborhood}
+            rankingByZona={rankingByZona}
+            rankingKind={rankingKind}
+            onRankingKind={onRankingKind}
+          />
         </section>
       </div>
     );
@@ -1689,7 +1861,7 @@ function MoreView({
             <li>Cadastre só com consentimento verbal.</li>
             <li>Informe o título, a zona e a seção do documento para puxar local de votação e perfil da urna.</li>
             <li>Em Imperatriz, escolha o bairro. Em outra cidade, informe só o município.</li>
-            <li>Os rankings mostram contatos ativos por bairro, município, zona e liderança.</li>
+            <li>O ranking fica no Início: bairros, municípios, zonas e lideranças.</li>
             <li>Disparos ficam com a administração.</li>
           </ol>
         </section>
@@ -1698,7 +1870,7 @@ function MoreView({
   }
 
   const items = [
-    { id: "ranking" as const, icon: <Trophy size={20} />, title: "Rankings da rede", note: "Bairros, municípios, zonas e lideranças" },
+    { id: "ranking" as const, icon: <Trophy size={20} />, title: "Rankings da rede", note: "Também está no Início — bairros, zonas e lideranças" },
     { id: "acessos" as const, icon: <Users size={20} />, title: "Lideranças e acessos", note: "Login, senha e permissões" },
     { id: "whatsapp" as const, icon: <MessageCircle size={20} />, title: "Integração do WhatsApp", note: "Status da conexão oficial" },
     { id: "privacidade" as const, icon: <ShieldCheck size={20} />, title: "Consentimento e privacidade", note: "Registros e saídas" },
@@ -1889,6 +2061,58 @@ function initials(name: string) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR").format(value);
+}
+
+function csvCell(value: string | number | null | undefined) {
+  const text = value == null ? "" : String(value);
+  if (/[",\n;]/.test(text)) return `"${text.replaceAll('"', '""')}"`;
+  return text;
+}
+
+function exportContactsCsv(rows: Contact[]) {
+  const header = [
+    "Nome",
+    "Telefone",
+    "Cidade",
+    "Bairro",
+    "Título",
+    "UF",
+    "Zona",
+    "Seção",
+    "Local de votação",
+    "Liderança",
+    "Status",
+    "Cadastro",
+  ];
+  const body = rows.map((contact) =>
+    [
+      contact.name,
+      contact.phone,
+      contact.city,
+      contact.neighborhood,
+      contact.titulo ? formatTitulo(contact.titulo) : "",
+      contact.tituloUf ?? "",
+      contact.zona ?? "",
+      contact.secao ?? "",
+      contact.localVotacao ?? "",
+      contact.leader,
+      contact.status === "ativo" ? "Ativo" : "Saiu",
+      contact.createdAt,
+    ]
+      .map(csvCell)
+      .join(";"),
+  );
+  const csv = `\uFEFF${header.join(";")}\n${body.join("\n")}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `rede-luzia-mary-${stamp}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function mapApiContact(item: Record<string, unknown>): Contact {

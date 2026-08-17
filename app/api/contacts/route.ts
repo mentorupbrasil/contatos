@@ -83,7 +83,7 @@ export async function GET() {
       .innerJoin(users, eq(contacts.leaderId, users.id))
       .where(scope)
       .orderBy(desc(contacts.createdAt))
-      .limit(300);
+      .limit(2000);
     return Response.json({ contacts: rows });
   } catch (error) {
     return apiErrorResponse(error);
