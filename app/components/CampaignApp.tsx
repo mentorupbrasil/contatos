@@ -589,7 +589,7 @@ export function CampaignApp({
 
   return (
     <div className="app-shell">
-      <header className="app-header">
+      <aside className="app-sidebar">
         <div className="brand-lockup">
           <Image
             src="/brand/luzia-logo-clear.png"
@@ -601,11 +601,33 @@ export function CampaignApp({
           />
           <small>Rede de Lideranças</small>
         </div>
-        <div className="header-actions">
-          <button className="icon-button" aria-label="Notificações" type="button" onClick={openNotifications}>
-            <Bell size={20} />
-            {unreadCount > 0 && <span className="notify-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
-          </button>
+        <nav className="app-nav" aria-label="Navegação principal">
+          <NavButton
+            active={tab === "inicio"}
+            onClick={() => setTab("inicio")}
+            icon={<Home size={20} strokeWidth={1.85} />}
+            label="Início"
+          />
+          <NavButton
+            active={tab === "contatos"}
+            onClick={() => setTab("contatos")}
+            icon={<ContactRound size={20} strokeWidth={1.85} />}
+            label="Contatos"
+          />
+          <NavButton
+            active={tab === "disparos"}
+            onClick={() => setTab("disparos")}
+            icon={<MessagesSquare size={20} strokeWidth={1.85} />}
+            label="Disparos"
+          />
+          <NavButton
+            active={tab === "mais"}
+            onClick={() => setTab("mais")}
+            icon={<MoreHorizontal size={20} strokeWidth={1.85} />}
+            label="Mais"
+          />
+        </nav>
+        <div className="sidebar-user">
           <button
             className="avatar"
             aria-label={`Perfil de ${firstName}`}
@@ -619,8 +641,16 @@ export function CampaignApp({
               initials(userName)
             )}
           </button>
+          <div className="sidebar-user-copy">
+            <strong>{firstName}</strong>
+            <small>{role === "admin" ? "Administração" : "Liderança"}</small>
+          </div>
+          <button className="icon-button" aria-label="Notificações" type="button" onClick={openNotifications}>
+            <Bell size={20} />
+            {unreadCount > 0 && <span className="notify-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+          </button>
         </div>
-      </header>
+      </aside>
 
       <main className="app-main">
         {loading && (
@@ -721,33 +751,6 @@ export function CampaignApp({
           />
         )}
       </main>
-
-      <nav className="bottom-nav" aria-label="Navegação principal">
-        <NavButton
-          active={tab === "inicio"}
-          onClick={() => setTab("inicio")}
-          icon={<Home size={20} strokeWidth={1.85} />}
-          label="Início"
-        />
-        <NavButton
-          active={tab === "contatos"}
-          onClick={() => setTab("contatos")}
-          icon={<ContactRound size={20} strokeWidth={1.85} />}
-          label="Contatos"
-        />
-        <NavButton
-          active={tab === "disparos"}
-          onClick={() => setTab("disparos")}
-          icon={<MessagesSquare size={20} strokeWidth={1.85} />}
-          label="Disparos"
-        />
-        <NavButton
-          active={tab === "mais"}
-          onClick={() => setTab("mais")}
-          icon={<MoreHorizontal size={20} strokeWidth={1.85} />}
-          label="Mais"
-        />
-      </nav>
 
       {contactSheet && (
         <Sheet title="Novo contato" subtitle="Nome, título, zona e seção" onClose={() => setContactSheet(false)}>
@@ -1111,10 +1114,7 @@ function HomeView({
         </button>
       </section>
 
-      <section className="section-card">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">Por local</span>
+      <section className="section-card home-rank">
             <h2>Bairros com mais contatos</h2>
           </div>
           <button className="text-button" type="button" onClick={() => onOpenRanking("bairros")}>
@@ -1129,7 +1129,7 @@ function HomeView({
         />
       </section>
 
-      <section className="section-card">
+      <section className="section-card home-rank">
         <div className="section-heading">
           <div>
             <span className="eyebrow">Equipe</span>
